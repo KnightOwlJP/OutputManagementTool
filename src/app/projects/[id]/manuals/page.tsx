@@ -258,10 +258,10 @@ export default function ManualsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               startContent={<MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />}
-              classNames={{
-                input: "text-sm",
-                inputWrapper: "shadow-sm",
-              }}
+              variant="faded"
+              size="lg"
+              isClearable
+              onClear={() => setSearchQuery('')}
             />
           </CardBody>
         </Card>
@@ -430,7 +430,7 @@ export default function ManualsPage() {
             setNewDescription('');
           }}
           title="マニュアル新規作成"
-          size="xl"
+          size="2xl"
           showConfirmButton
           confirmText="作成"
           onConfirm={handleCreateManual}
@@ -439,37 +439,30 @@ export default function ManualsPage() {
           confirmColor="primary"
         >
           <div className="space-y-6">
-            <div className="space-y-3">
-              <Input
-                label="タイトル"
-                placeholder="マニュアルのタイトルを入力"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                isRequired
-                autoFocus
-                classNames={{
-                  base: "w-full",
-                  input: "text-base",
-                  inputWrapper: "min-h-[48px] px-4 py-3 border-2",
-                }}
-              />
-            </div>
+            <Input
+              label="タイトル"
+              placeholder="マニュアルのタイトルを入力"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              isRequired
+              autoFocus
+              variant="bordered"
+              size="lg"
+              labelPlacement="outside"
+              isClearable
+            />
             
-            <div className="space-y-3">
-              <Textarea
-                label="説明（任意）"
-                placeholder="マニュアルの説明を入力"
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-                minRows={4}
-                maxRows={8}
-                classNames={{
-                  base: "w-full",
-                  input: "text-base resize-none",
-                  inputWrapper: "px-4 py-3 border-2",
-                }}
-              />
-            </div>
+            <Textarea
+              label="説明（任意）"
+              placeholder="マニュアルの説明を入力"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              minRows={4}
+              maxRows={8}
+              variant="bordered"
+              size="lg"
+              labelPlacement="outside"
+            />
           </div>
         </Modal>
 
@@ -478,7 +471,7 @@ export default function ManualsPage() {
           isOpen={isGenerateModalOpen}
           onClose={() => setIsGenerateModalOpen(false)}
           title="工程表からマニュアル生成"
-          size="xl"
+          size="2xl"
           showConfirmButton
           confirmText="生成"
           onConfirm={handleGenerateFromProcesses}

@@ -31,10 +31,7 @@ export default function RootLayout({
       >
         <ErrorBoundary>
           <ToastProvider>
-            <HeroUIProvider 
-              skipFramerMotionAnimations
-              disableRipple={false}
-            >
+            <HeroUIProvider>
               {children}
               <ToastContainer />
             </HeroUIProvider>

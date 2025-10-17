@@ -132,7 +132,7 @@ export function ProcessForm({
       isOpen={isOpen}
       onClose={onClose}
       title={process ? '工程を編集' : '工程を追加'}
-      size="xl"
+      size="2xl"
       showConfirmButton
       confirmText={process ? '更新' : '作成'}
       onConfirm={handleSubmit}
@@ -142,132 +142,113 @@ export function ProcessForm({
     >
       <div className="space-y-6">
         {/* 工程レベル選択 */}
-        <div className="space-y-3">
-          <Select
-            label="工程レベル"
-            placeholder="レベルを選択"
-            selectedKeys={[formData.level]}
-            onChange={(e) => handleLevelChange(e.target.value as ProcessLevel)}
-            isDisabled={!!process || !!defaultLevel}
-            isRequired
-            description={
-              formData.level === 'large' ? '複数の中工程をまとめる部署単位の工程' :
-              formData.level === 'medium' ? '作業実行者が行う一連の作業' :
-              formData.level === 'small' ? '特定の帳票に関する作業' :
-              '具体的な作業ステップ'
-            }
-            classNames={{
-              base: "w-full",
-              trigger: "min-h-[48px] px-4 py-3 border-2",
-              value: "text-base",
-              listbox: "bg-white dark:bg-gray-800",
-              popoverContent: "bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600",
-            }}
-          >
-            <SelectItem key="large">{getLevelLabel('large')}</SelectItem>
-            <SelectItem key="medium">{getLevelLabel('medium')}</SelectItem>
-            <SelectItem key="small">{getLevelLabel('small')}</SelectItem>
-            <SelectItem key="detail">{getLevelLabel('detail')}</SelectItem>
-          </Select>
-        </div>
+        <Select
+          label="工程レベル"
+          placeholder="レベルを選択"
+          selectedKeys={[formData.level]}
+          onChange={(e) => handleLevelChange(e.target.value as ProcessLevel)}
+          isDisabled={!!process || !!defaultLevel}
+          isRequired
+          variant="bordered"
+          size="lg"
+          labelPlacement="outside"
+          description={
+            formData.level === 'large' ? '複数の中工程をまとめる部署単位の工程' :
+            formData.level === 'medium' ? '作業実行者が行う一連の作業' :
+            formData.level === 'small' ? '特定の帳票に関する作業' :
+            '具体的な作業ステップ'
+          }
+          classNames={{
+            listbox: "bg-white dark:bg-gray-800",
+            popoverContent: "bg-white dark:bg-gray-800",
+          }}
+        >
+          <SelectItem key="large">{getLevelLabel('large')}</SelectItem>
+          <SelectItem key="medium">{getLevelLabel('medium')}</SelectItem>
+          <SelectItem key="small">{getLevelLabel('small')}</SelectItem>
+          <SelectItem key="detail">{getLevelLabel('detail')}</SelectItem>
+        </Select>
 
         {/* 工程名 */}
-        <div className="space-y-3">
-          <Input
-            label="工程名"
-            placeholder="工程名を入力"
-            value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            isRequired
-            isInvalid={!!errors.name}
-            errorMessage={errors.name}
-            autoFocus
-            classNames={{
-              base: "w-full",
-              input: "text-base",
-              inputWrapper: "min-h-[48px] px-4 py-3 border-2",
-            }}
-          />
-        </div>
+        <Input
+          label="工程名"
+          placeholder="工程名を入力"
+          value={formData.name}
+          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+          isRequired
+          isInvalid={!!errors.name}
+          errorMessage={errors.name}
+          autoFocus
+          variant="bordered"
+          size="lg"
+          labelPlacement="outside"
+          isClearable
+        />
 
         {/* レベル別フィールド */}
         {formData.level === 'large' && (
-          <div className="space-y-3">
-            <Input
-              label="部署名"
-              placeholder="例: 営業部、経理部"
-              value={formData.department}
-              onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-              isRequired
-              isInvalid={!!errors.department}
-              errorMessage={errors.department}
-              description="この工程を担当する部署名を入力してください"
-              classNames={{
-                base: "w-full",
-                input: "text-base",
-                inputWrapper: "min-h-[48px] px-4 py-3 border-2",
-              }}
-            />
-          </div>
+          <Input
+            label="部署名"
+            placeholder="部署名を入力"
+            value={formData.department}
+            onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+            isRequired
+            isInvalid={!!errors.department}
+            errorMessage={errors.department}
+            variant="bordered"
+            size="lg"
+            labelPlacement="outside"
+            isClearable
+          />
         )}
 
         {formData.level === 'medium' && (
-          <div className="space-y-3">
-            <Input
-              label="作業実行者"
-              placeholder="例: 営業担当者、経理担当者"
-              value={formData.assignee}
-              onChange={(e) => setFormData(prev => ({ ...prev, assignee: e.target.value }))}
-              isRequired
-              isInvalid={!!errors.assignee}
-              errorMessage={errors.assignee}
-              description="この工程を実行する担当者の役割を入力してください"
-              classNames={{
-                base: "w-full",
-                input: "text-base",
-                inputWrapper: "min-h-[48px] px-4 py-3 border-2",
-              }}
-            />
-          </div>
+          <Input
+            label="作業実行者"
+            placeholder="作業実行者を入力"
+            value={formData.assignee}
+            onChange={(e) => setFormData(prev => ({ ...prev, assignee: e.target.value }))}
+            isRequired
+            isInvalid={!!errors.assignee}
+            errorMessage={errors.assignee}
+            description="この工程を実行する担当者の役割を入力してください"
+            variant="bordered"
+            size="lg"
+            labelPlacement="outside"
+            isClearable
+          />
         )}
 
         {formData.level === 'small' && (
-          <div className="space-y-3">
-            <Input
-              label="帳票種類"
-              placeholder="例: 見積書、請求書、発注書"
-              value={formData.documentType}
-              onChange={(e) => setFormData(prev => ({ ...prev, documentType: e.target.value }))}
-              isRequired
-              isInvalid={!!errors.documentType}
-              errorMessage={errors.documentType}
-              description="この工程で扱う帳票の種類を入力してください"
-              classNames={{
-                base: "w-full",
-                input: "text-base",
-                inputWrapper: "min-h-[48px] px-4 py-3 border-2",
-              }}
-            />
-          </div>
+          <Input
+            label="帳票種類"
+            placeholder="帳票種類を入力"
+            value={formData.documentType}
+            onChange={(e) => setFormData(prev => ({ ...prev, documentType: e.target.value }))}
+            isRequired
+            isInvalid={!!errors.documentType}
+            errorMessage={errors.documentType}
+            description="この工程で扱う帳票の種類を入力してください"
+            variant="bordered"
+            size="lg"
+            labelPlacement="outside"
+            isClearable
+          />
         )}
 
         {/* 説明 */}
-        <div className="space-y-3">
-          <Textarea
-            label="説明"
-            placeholder="工程の詳細な説明を入力（任意）"
-            value={formData.description}
-            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-            minRows={3}
-            maxRows={6}
-            description="この工程の目的や注意事項などを記載してください"
-            classNames={{
-              base: "w-full",
-              input: "text-base resize-none",
-              inputWrapper: "px-4 py-3 border-2",
-            }}
-          />
-        </div>
+        <Textarea
+          label="説明"
+          placeholder="工程の説明を入力"
+          value={formData.description}
+          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          minRows={4}
+          maxRows={8}
+          description="この工程の目的や注意事項などを記載してください"
+          variant="bordered"
+          size="lg"
+          labelPlacement="outside"
+        />
 
         {/* ガイド（最後に配置して重ならないように） */}
         <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border-2 border-blue-200 dark:border-blue-800 mt-4">

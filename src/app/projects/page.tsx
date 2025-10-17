@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardBody, CardFooter, CardHeader, Input, Spinner } from '@heroui/react';
+import { Card, CardBody, CardFooter, CardHeader, Input, Textarea, Spinner } from '@heroui/react';
 import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderIcon } from '@heroicons/react/24/outline';
 import { AppLayout, Button, Modal, SkeletonCard } from '@/components';
 import { useProjectStore } from '@/stores/projectStore';
@@ -187,10 +187,10 @@ export default function ProjectsPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           startContent={<MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />}
-          classNames={{
-            input: 'text-sm',
-            inputWrapper: 'h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
-          }}
+          variant="faded"
+          size="lg"
+          isClearable
+          onClear={() => setSearchQuery('')}
         />
 
         {/* プロジェクトグリッド */}
@@ -279,7 +279,7 @@ export default function ProjectsPage() {
           setNameError('');
         }}
         title="新しいプロジェクトを作成"
-        size="md"
+        size="2xl"
         showConfirmButton
         confirmText="作成"
         confirmColor="primary"
@@ -288,44 +288,36 @@ export default function ProjectsPage() {
         isConfirmLoading={isSubmitting}
       >
         <div className="space-y-6">
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              プロジェクト名 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={newProjectName}
-              onChange={(e) => {
-                setNewProjectName(e.target.value);
-                validateProjectName(e.target.value);
-              }}
-              placeholder="例: 業務改善プロジェクト"
-              autoFocus
-              className={`w-full px-4 py-3 bg-white dark:bg-gray-800 border-2 rounded-lg text-gray-900 dark:text-gray-50 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 transition-colors ${
-                nameError ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              maxLength={100}
-            />
-            {nameError && (
-              <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-start gap-2">
-                <span className="text-red-500">⚠</span>
-                <span>{nameError}</span>
-              </p>
-            )}
-          </div>
+          <Input
+            label="プロジェクト名"
+            placeholder="例: 業務改善プロジェクト"
+            value={newProjectName}
+            onChange={(e) => {
+              setNewProjectName(e.target.value);
+              validateProjectName(e.target.value);
+            }}
+            isRequired
+            autoFocus
+            isInvalid={!!nameError}
+            errorMessage={nameError}
+            variant="bordered"
+            size="lg"
+            labelPlacement="outside"
+            isClearable
+            maxLength={100}
+          />
           
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              説明（任意）
-            </label>
-            <textarea
-              value={newProjectDescription}
-              onChange={(e) => setNewProjectDescription(e.target.value)}
-              placeholder="プロジェクトの概要を入力"
-              rows={3}
-              className="w-full px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-50 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
-            />
-          </div>
+          <Textarea
+            label="説明（任意）"
+            placeholder="プロジェクトの概要を入力"
+            value={newProjectDescription}
+            onChange={(e) => setNewProjectDescription(e.target.value)}
+            minRows={3}
+            maxRows={6}
+            variant="bordered"
+            size="lg"
+            labelPlacement="outside"
+          />
           
           <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">

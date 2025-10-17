@@ -526,7 +526,7 @@ export default function BpmnPage() {
             setNewDiagramName('');
           }}
           title="新規ダイアグラム作成"
-          size="xl"
+          size="2xl"
           showConfirmButton
           confirmText="作成"
           onConfirm={handleCreateDiagram}
@@ -534,29 +534,27 @@ export default function BpmnPage() {
           confirmColor="primary"
         >
           <div className="space-y-6">
-            <div className="space-y-3">
-              <Input
-                label="ダイアグラム名"
-                placeholder="例: 営業プロセス"
-                value={newDiagramName}
-                onChange={(e) => setNewDiagramName(e.target.value)}
-                isRequired
-                autoFocus
-                classNames={{
-                  base: "w-full",
-                  input: "text-base",
-                  inputWrapper: "min-h-[48px] px-4 py-3 border-2",
-                }}
-              />
-            </div>
+            <Input
+              label="ダイアグラム名"
+              placeholder="例: 営業プロセス"
+              value={newDiagramName}
+              onChange={(e) => setNewDiagramName(e.target.value)}
+              isRequired
+              autoFocus
+              variant="bordered"
+              size="lg"
+              labelPlacement="outside"
+              isClearable
+              description="プロセスの種類や部署名を含めると管理しやすくなります"
+            />
             
             <div className="p-4 bg-blue-50 dark:bg-blue-950 border-2 border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
                 💡 ヒント
               </p>
               <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                <li>• プロセスの種類や部署名を含めると管理しやすくなります</li>
                 <li>• 例: 「営業部_受注プロセス」「経理部_請求書処理」</li>
+                <li>• 工程表と連携して業務フローを可視化できます</li>
               </ul>
             </div>
           </div>
