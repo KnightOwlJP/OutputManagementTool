@@ -34,8 +34,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
-    // 既存のclassNameを保持しつつ、横並びレイアウトを強制
-    const combinedClassName = `flex flex-row items-center justify-center gap-2 whitespace-nowrap ${className || ''}`;
+    // プロジェクト詳細ページのスタイルを適用
+    let baseClassName = 'flex flex-row items-center justify-center gap-2 whitespace-nowrap font-semibold';
+    
+    // カラーとバリアント別のスタイル
+    if (color === 'primary' && variant === 'solid') {
+      baseClassName += ' shadow-md hover:shadow-lg transition-shadow bg-blue-600 hover:bg-blue-700 text-white';
+    } else if (color === 'default' && variant === 'flat') {
+      baseClassName += ' border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700';
+    }
+    
+    const combinedClassName = `${baseClassName} ${className || ''}`;
     
     return (
       <HeroButton
