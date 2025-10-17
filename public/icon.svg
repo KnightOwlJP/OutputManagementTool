@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- 背景グラデーション -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- 循環矢印グラデーション -->
+    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:0.8" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="80" fill="url(#bgGrad)"/>
+  
+  <!-- 中心からの配置 -->
+  <g transform="translate(256, 256)">
+    
+    <!-- 循環を示す円形の矢印パス（背景） -->
+    <g stroke="url(#arrowGrad)" stroke-width="8" fill="none" opacity="0.6">
+      <!-- 円形パス（3分割） -->
+      <path d="M 0,-130 A 130,130 0 0,1 112.6,-65" stroke-dasharray="8,4"/>
+      <path d="M 112.6,-65 A 130,130 0 0,1 112.6,65" stroke-dasharray="8,4"/>
+      <path d="M 112.6,65 A 130,130 0 0,1 0,130" stroke-dasharray="8,4"/>
+      <path d="M 0,130 A 130,130 0 0,1 -112.6,65" stroke-dasharray="8,4"/>
+      <path d="M -112.6,65 A 130,130 0 0,1 -112.6,-65" stroke-dasharray="8,4"/>
+      <path d="M -112.6,-65 A 130,130 0 0,1 0,-130" stroke-dasharray="8,4"/>
+    </g>
+    
+    <!-- 1. プロセス（上部） -->
+    <g transform="translate(0, -140)">
+      <circle cx="0" cy="0" r="55" fill="white" opacity="0.95"/>
+      <!-- シンプルなフローアイコン -->
+      <g fill="#3b82f6">
+        <!-- 3つのステップボックス -->
+        <rect x="-24" y="-26" width="48" height="14" rx="3"/>
+        <rect x="-24" y="-6" width="48" height="14" rx="3"/>
+        <rect x="-24" y="14" width="48" height="14" rx="3"/>
+        
+        <!-- 接続矢印 -->
+        <polygon points="0,-12 -4,-16 4,-16" fill="#3b82f6"/>
+        <polygon points="0,8 -4,4 4,4" fill="#3b82f6"/>
+      </g>
+    </g>
+    
+    <!-- 矢印1: プロセス → テーブル -->
+    <g transform="rotate(60)" fill="white" opacity="0.9">
+      <polygon points="0,-125 -8,-135 8,-135"/>
+    </g>
+    
+    <!-- 2. テーブル（右下） -->
+    <g transform="translate(121, 70)">
+      <circle cx="0" cy="0" r="55" fill="white" opacity="0.95"/>
+      <!-- テーブルアイコン -->
+      <g fill="#8b5cf6" stroke="#8b5cf6">
+        <!-- テーブルグリッド -->
+        <rect x="-30" y="-25" width="60" height="50" fill="none" stroke-width="3" rx="2"/>
+        <!-- 横線 -->
+        <line x1="-30" y1="-8" x2="30" y2="-8" stroke-width="2"/>
+        <line x1="-30" y1="8" x2="30" y2="8" stroke-width="2"/>
+        <!-- 縦線 -->
+        <line x1="-10" y1="-25" x2="-10" y2="25" stroke-width="2"/>
+        <line x1="10" y1="-25" x2="10" y2="25" stroke-width="2"/>
+        <!-- セル強調 -->
+        <rect x="-28" y="-23" width="16" height="13" fill="#8b5cf6" opacity="0.3" rx="1"/>
+      </g>
+    </g>
+    
+    <!-- 矢印2: テーブル → マニュアル -->
+    <g transform="rotate(180)" fill="white" opacity="0.9">
+      <polygon points="0,-125 -8,-135 8,-135"/>
+    </g>
+    
+    <!-- 3. マニュアル（左下） -->
+    <g transform="translate(-121, 70)">
+      <circle cx="0" cy="0" r="55" fill="white" opacity="0.95"/>
+      <!-- マニュアル/ブックアイコン -->
+      <g fill="#ec4899">
+        <!-- 本の表紙 -->
+        <rect x="-25" y="-30" width="50" height="60" rx="3" fill="#ec4899"/>
+        <rect x="-25" y="-30" width="50" height="60" rx="3" fill="white" opacity="0.2"/>
+        <!-- ページの線 -->
+        <line x1="-15" y1="-15" x2="15" y2="-15" stroke="white" stroke-width="2.5"/>
+        <line x1="-15" y1="-3" x2="15" y2="-3" stroke="white" stroke-width="2.5"/>
+        <line x1="-15" y1="9" x2="10" y2="9" stroke="white" stroke-width="2.5"/>
+        <!-- 本の背表紙 -->
+        <rect x="-28" y="-30" width="6" height="60" rx="2" fill="#be185d"/>
+      </g>
+    </g>
+    
+    <!-- 矢印3: マニュアル → プロセス -->
+    <g transform="rotate(-60)" fill="white" opacity="0.9">
+      <polygon points="0,-125 -8,-135 8,-135"/>
+    </g>
+    
+    <!-- 中央の接続ハブ -->
+    <circle cx="0" cy="0" r="20" fill="white" opacity="0.9"/>
+    <circle cx="0" cy="0" r="12" fill="url(#bgGrad)"/>
+    <circle cx="0" cy="0" r="6" fill="white"/>
+    
+  </g>
+</svg>

@@ -1,0 +1,83 @@
+{
+  "appId": "com.outputmanagement.tool",
+  "productName": "Output Management Tool",
+  "directories": {
+    "output": "dist",
+    "buildResources": "build"
+  },
+  "files": [
+    "out/**/*",
+    "electron/**/*",
+    "package.json",
+    "!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme,HISTORY.md,CONTRIBUTORS.md,AUTHORS}",
+    "!**/node_modules/**/{test,__tests__,tests,powered-test,example,examples,samples,benchmark,benchmarks}",
+    "!**/node_modules/**/*.d.ts",
+    "!**/node_modules/**/.bin",
+    "!**/node_modules/**/{*.map,*.ts,*.tsx,*.flow}",
+    "!**/node_modules/**/docs/**/*",
+    "!**/node_modules/**/doc/**/*",
+    "!**/node_modules/**/{LICENSE,LICENCE,license,licence}",
+    "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj,eslintrc,prettierrc,babelrc}",
+    "!.editorconfig",
+    "!**/._*",
+    "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+    "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output,coverage}",
+    "!**/{appveyor.yml,.travis.yml,circle.yml,azure-pipelines.yml,.gitlab-ci.yml}",
+    "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json,yarn-error.log}"
+  ],
+  "extraMetadata": {
+    "main": "electron/main.js"
+  },
+  "asarUnpack": [
+    "**/node_modules/better-sqlite3/**/*"
+  ],
+  "afterPack": "./scripts/after-pack.js",
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/icon.ico",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "forceCodeSigning": false,
+    "signAndEditExecutable": false,
+    "verifyUpdateCodeSignature": false
+  },
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "icon": "public/icon.icns",
+    "category": "public.app-category.productivity"
+  },
+  "linux": {
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/icon.png",
+    "category": "Utility"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "perMachine": false,
+    "createDesktopShortcut": "always",
+    "createStartMenuShortcut": true,
+    "shortcutName": "Output Management Tool",
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico",
+    "differentialPackage": true
+  },
+  "compression": "maximum",
+  "removePackageScripts": true,
+  "electronCompile": false,
+  "asar": true
+}

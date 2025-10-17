@@ -39,3 +39,40 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Electron build outputs
+/dist/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# Electron compiled files
+electron/**/*.js
+electron/**/*.js.map
+electron/**/*.d.ts
+!electron/main.js
+!electron/preload.js
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+/data/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
