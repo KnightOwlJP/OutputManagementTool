@@ -232,9 +232,9 @@ export default function TrinityDashboardPage() {
               <ArrowLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">三位一体同期ダッシュボード</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">統合管理ダッシュボード</h1>
               <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
-                BPMN ⇔ 工程表 ⇔ マニュアル の統合管理
+                工程表・フロー図・マニュアルの一元管理
               </p>
             </div>
           </div>
@@ -420,7 +420,7 @@ export default function TrinityDashboardPage() {
         <Card className="shadow-sm">
           <CardHeader className="p-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-              三位一体同期のしくみ
+              統合管理のしくみ
             </h3>
           </CardHeader>
           <CardBody className="p-4 pt-0">
@@ -431,11 +431,11 @@ export default function TrinityDashboardPage() {
                 </div>
                 <div className="flex-1">
                   <h4 className="font-semibold text-gray-900 dark:text-gray-50 mb-1">
-                    BPMN → 工程表
+                    グループベース管理
                   </h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    BPMNダイアグラムのタスクを解析し、工程表に自動反映します。
-                    タスクの追加・更新・削除が同期されます。
+                    工程表・フロー図・マニュアルをそれぞれグループ単位で管理。
+                    階層レベル（大・中・小・詳細）ごとに整理できます。
                   </p>
                 </div>
               </div>
@@ -446,11 +446,11 @@ export default function TrinityDashboardPage() {
                 </div>
                 <div className="flex-1">
                   <h4 className="font-semibold text-gray-900 dark:text-gray-50 mb-1">
-                    工程表 → BPMN
+                    グループ間連携
                   </h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    工程表で追加・変更された情報をBPMNダイアグラムに反映します。
-                    双方向で整合性を保ちます。
+                    各グループは工程表グループと紐付けることで、
+                    関連性を明確にし、一元的な管理が可能になります。
                   </p>
                 </div>
               </div>
@@ -461,11 +461,11 @@ export default function TrinityDashboardPage() {
                 </div>
                 <div className="flex-1">
                   <h4 className="font-semibold text-gray-900 dark:text-gray-50 mb-1">
-                    工程表 → マニュアル
+                    一元ビュー
                   </h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    工程表の階層構造からマニュアルのアウトラインを自動生成します。
-                    工程名の変更も自動的にマニュアルに反映されます。
+                    このダッシュボードで全体の状況を把握。
+                    各グループへ素早くアクセスできます。
                   </p>
                 </div>
               </div>
@@ -476,9 +476,9 @@ export default function TrinityDashboardPage() {
                 💡 活用のヒント
               </h4>
               <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                <li>• 自動同期を有効にすると、変更が即座に反映されます</li>
-                <li>• 定期的に全体同期を実行して、整合性を保ちましょう</li>
-                <li>• Phase 6では構造のみ。Phase 7で詳細コンテンツが自動生成されます</li>
+                <li>• 階層レベルごとにグループを作成して整理しましょう</li>
+                <li>• 工程表グループと紐付けることで関連性を明確化</li>
+                <li>• Phase 6では基本的なグループ管理機能を提供しています</li>
               </ul>
             </div>
           </CardBody>

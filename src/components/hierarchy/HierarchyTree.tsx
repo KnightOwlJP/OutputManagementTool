@@ -2,8 +2,16 @@
 
 import React, { useState, useMemo, useEffect, memo, useCallback } from 'react';
 import { Card, CardBody, Button, Input, Select, SelectItem } from '@heroui/react';
+import { 
+  PencilIcon, 
+  TrashIcon, 
+  PlusCircleIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+} from '@heroicons/react/24/outline';
 import { Process, ProcessLevel } from '@/types/project.types';
 import { useHierarchyViewStore } from '@/stores/hierarchyViewStore';
+import { useToast } from '@/contexts/ToastContext';
 
 interface HierarchyTreeProps {
   projectId: string;
@@ -29,6 +37,7 @@ export const HierarchyTree = memo(function HierarchyTree({
   onProcessEdit,
   onProcessCreate,
 }: HierarchyTreeProps) {
+  const { showToast } = useToast();
   const {
     getExpandedNodes,
     toggleNode: toggleNodeInStore,
@@ -196,7 +205,7 @@ export const HierarchyTree = memo(function HierarchyTree({
       };
 
       if (isDescendant(targetNodeId, draggedNodeId)) {
-        alert('子孫ノードを親にすることはできません');
+        showToast('warning', '子孫ノードを親にすることはできません');
         setDraggedNodeId(null);
         setDragOverNodeId(null);
         return;
@@ -323,8 +332,10 @@ export const HierarchyTree = memo(function HierarchyTree({
                 variant="flat"
                 color="primary"
                 onPress={() => onProcessCreate(node.id)}
+                startContent={<PlusCircleIcon className="w-4 h-4" />}
+                title="子工程を追加"
               >
-                +
+                追加
               </Button>
             )}
             {onProcessEdit && (
@@ -333,6 +344,8 @@ export const HierarchyTree = memo(function HierarchyTree({
                 variant="flat"
                 color="default"
                 onPress={() => onProcessEdit(node)}
+                startContent={<PencilIcon className="w-4 h-4" />}
+                title="工程を編集"
               >
                 編集
               </Button>
@@ -343,6 +356,8 @@ export const HierarchyTree = memo(function HierarchyTree({
                 variant="flat"
                 color="danger"
                 onPress={() => onProcessDelete(node.id)}
+                startContent={<TrashIcon className="w-4 h-4" />}
+                title="工程を削除"
               >
                 削除
               </Button>
@@ -392,6 +407,8 @@ export const HierarchyTree = memo(function HierarchyTree({
               value={searchQuery}
               onValueChange={setSearchQuery}
               className="flex-1"
+              startContent={<MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />}
+              isClearable
             />
             <Select
               placeholder="レベルで絞り込み"
@@ -401,6 +418,7 @@ export const HierarchyTree = memo(function HierarchyTree({
                 setLevelFilter(value);
               }}
               className="w-48"
+              startContent={<FunnelIcon className="w-4 h-4 text-gray-400" />}
             >
               <SelectItem key="all">すべて</SelectItem>
               <SelectItem key="large">大工程</SelectItem>
@@ -421,7 +439,13 @@ export const HierarchyTree = memo(function HierarchyTree({
               </Button>
             </div>
             {onProcessCreate && (
-              <Button size="sm" color="primary" onPress={() => onProcessCreate(null)}>
+              <Button 
+                size="sm" 
+                color="primary" 
+                variant="flat"
+                startContent={<PlusCircleIcon className="w-4 h-4" />}
+                onPress={() => onProcessCreate(null)}
+              >
                 ルート工程を追加
               </Button>
             )}

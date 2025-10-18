@@ -5,6 +5,9 @@ import { initDatabase, closeDatabase } from './utils/database';
 import { getLogger, setupGlobalErrorHandler } from './utils/logger';
 import { registerProjectHandlers } from './ipc/project.handlers';
 import { registerProcessHandlers } from './ipc/process.handlers';
+import { registerProcessTableHandlers } from './ipc/processTable.handlers';
+import { registerBpmnDiagramTableHandlers } from './ipc/bpmnDiagramTable.handlers';
+import { registerManualTableHandlers } from './ipc/manualTable.handlers';
 import { registerBpmnHandlers } from './ipc/bpmn.handlers';
 import { registerVersionHandlers } from './ipc/version.handlers';
 import { registerSyncHandlers } from './ipc/sync.handlers';
@@ -162,6 +165,9 @@ app.whenReady().then(async () => {
   // IPCハンドラーを登録
   try {
     registerProjectHandlers();
+    registerProcessTableHandlers();
+    registerBpmnDiagramTableHandlers();
+    registerManualTableHandlers();
     registerProcessHandlers();
     registerBpmnHandlers();
     registerVersionHandlers();

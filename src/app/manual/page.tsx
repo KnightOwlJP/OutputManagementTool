@@ -49,8 +49,8 @@ export default function ManualPage() {
             
             <p className="text-lg text-gray-700 dark:text-gray-300 leading-relaxed">
               Output Management Toolは、業務プロセスを<strong>4段階の階層</strong>で管理し、
-              <strong>BPMN 2.0</strong>標準に準拠したダイアグラム連携、Excel連携、バージョン管理、
-              そして<strong>三位一体同期機能</strong>（BPMN ⇔ 工程表 ⇔ マニュアル）を提供する
+              <strong>グループベース</strong>で工程表・フロー図・マニュアルを整理できます。
+              <strong>BPMN 2.0</strong>標準に準拠したダイアグラム連携、Excel連携、バージョン管理を提供する
               統合プロセス管理ツールです。
             </p>
             
@@ -58,13 +58,13 @@ export default function ManualPage() {
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-5 rounded-lg">
                 <h3 className="text-lg font-semibold mb-3 text-blue-700 dark:text-blue-300 flex items-center gap-2">
                   <DocumentTextIcon className="w-5 h-5" />
-                  Phase 6 新機能
+                  Phase 6 機能
                 </h3>
                 <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                  <li>🔄 <strong>BPMN ⇔ 工程表 双方向同期</strong></li>
-                  <li>📄 <strong>工程表 → マニュアル 自動生成</strong></li>
-                  <li>🎯 <strong>Trinity統合ビュー</strong></li>
-                  <li>⚡ <strong>リアルタイム同期</strong></li>
+                  <li>� <strong>グループベース管理</strong></li>
+                  <li>� <strong>階層別グループ分類</strong></li>
+                  <li>🎯 <strong>工程表・フロー図・マニュアル連携</strong></li>
+                  <li>⚡ <strong>一元管理ダッシュボード</strong></li>
                 </ul>
               </div>
               
@@ -75,6 +75,7 @@ export default function ManualPage() {
                 </h3>
                 <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                   <li>📊 <strong>4段階階層管理</strong></li>
+                  <li>📁 <strong>グループベース整理</strong></li>
                   <li>🎨 <strong>BPMNビジュアルエディタ</strong></li>
                   <li>📋 <strong>Excel連携</strong></li>
                   <li>💾 <strong>バージョン管理</strong></li>
@@ -382,76 +383,78 @@ export default function ManualPage() {
                 </div>
               </AccordionItem>
 
-              {/* Trinity同期 */}
+              {/* グループ管理 */}
               <AccordionItem
                 key="trinity"
-                aria-label="Trinity同期"
+                aria-label="グループ管理"
                 title={
                   <div className="flex items-center gap-3">
                     <ArrowsRightLeftIcon className="w-6 h-6 text-pink-500" />
-                    <span className="font-bold text-lg">5. Trinity同期 (Phase 6)</span>
+                    <span className="font-bold text-lg">5. グループ管理 (Phase 6)</span>
                     <Chip size="sm" color="danger" variant="flat">NEW</Chip>
                   </div>
                 }
               >
                 <div className="space-y-4 pl-9">
                   <div className="bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-950 dark:to-purple-950 p-4 rounded-lg border border-pink-200 dark:border-pink-800">
-                    <h4 className="font-semibold mb-2 text-pink-700 dark:text-pink-300">🔄 三位一体同期とは？</h4>
+                    <h4 className="font-semibold mb-2 text-pink-700 dark:text-pink-300">� グループベース管理とは？</h4>
                     <p className="text-sm text-gray-700 dark:text-gray-300">
-                      BPMN、工程表、マニュアルの3要素を自動的に同期させる機能です。
-                      どれか1つを編集すると、他の2つも自動更新されます。
+                      工程表、フロー図、マニュアルをグループ単位で管理する機能です。
+                      階層レベル（大・中・小・詳細）ごとに整理し、関連性を明確にします。
                     </p>
                   </div>
                   
                   <Divider />
                   
                   <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🔄 BPMN → 工程表</h4>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">� 工程表グループ</h4>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      BPMNのタスクが工程表に自動的に反映されます。
+                      複数の工程表を階層レベルごとにグループ化して管理します。
                     </p>
                     <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>BPMNエディタでタスクを追加</li>
-                      <li>「工程表と同期」ボタンをクリック</li>
-                      <li>工程表に新しい工程が追加されます</li>
+                      <li>階層管理ページから「工程表グループ管理」へ</li>
+                      <li>「グループ作成」で新規グループを作成</li>
+                      <li>階層レベルを選択（大・中・小・詳細）</li>
+                      <li>グループに工程を追加して整理</li>
                     </ol>
                   </div>
                   
                   <Divider />
                   
                   <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📋 工程表 → BPMN</h4>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">� フロー図グループ</h4>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      工程表の変更がBPMNダイアグラムに反映されます。
+                      BPMNダイアグラムをグループ単位で管理します。
                     </p>
                     <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>階層管理で工程を追加・編集</li>
-                      <li>「BPMNに同期」ボタンをクリック</li>
-                      <li>BPMNに新しいタスクが追加されます</li>
+                      <li>「BPMN」タブからグループ管理へ</li>
+                      <li>階層レベルごとにフロー図グループを作成</li>
+                      <li>工程表グループと紐付けて関連性を明確化</li>
+                      <li>グループ内でフロー図を管理</li>
                     </ol>
                   </div>
                   
                   <Divider />
                   
                   <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📄 工程表 → マニュアル</h4>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📄 マニュアルグループ</h4>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      工程表からマニュアルを自動生成できます。
+                      マニュアルをグループ単位で整理・管理します。
                     </p>
                     <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
                       <li>「マニュアル」タブを選択</li>
-                      <li>「工程から生成」ボタンをクリック</li>
-                      <li>テンプレートを選択</li>
-                      <li>自動的にマニュアルが作成されます</li>
+                      <li>「グループ作成」でマニュアルグループを作成</li>
+                      <li>階層レベルと工程表グループを設定</li>
+                      <li>グループ内でマニュアルを作成・編集</li>
                     </ol>
                   </div>
                   
                   <Divider />
                   
                   <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🎯 Trinity統合ビュー</h4>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🎯 統合管理ビュー</h4>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      「Trinity」タブで3要素を同時に表示・編集できます。リアルタイムで同期状態を確認できます。
+                      「Trinity」タブで3要素を一元管理できます。各グループの状況を一覧で確認し、素早くアクセスできます。
                     </p>
                   </div>
                 </div>

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { HeroUIProvider } from "@heroui/react";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { ToastProvider } from "@/contexts/ToastContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 import ToastContainer from "@/components/common/ToastContainer";
 import "./globals.css";
 
@@ -30,12 +31,14 @@ export default function RootLayout({
         className={`${inter.variable} antialiased`}
       >
         <ErrorBoundary>
-          <ToastProvider>
-            <HeroUIProvider>
-              {children}
-              <ToastContainer />
-            </HeroUIProvider>
-          </ToastProvider>
+          <SettingsProvider>
+            <ToastProvider>
+              <HeroUIProvider>
+                {children}
+                <ToastContainer />
+              </HeroUIProvider>
+            </ToastProvider>
+          </SettingsProvider>
         </ErrorBoundary>
       </body>
     </html>

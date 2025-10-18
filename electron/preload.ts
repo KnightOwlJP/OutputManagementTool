@@ -18,6 +18,36 @@ const api = {
     saveExcel: (data: any) => ipcRenderer.invoke('file:saveExcel', data),
   },
 
+  // 工程表（ProcessTable）操作
+  processTable: {
+    create: (data: any) => ipcRenderer.invoke('processTable:create', data),
+    getByProject: (projectId: string) => ipcRenderer.invoke('processTable:getByProject', projectId),
+    getById: (id: string) => ipcRenderer.invoke('processTable:getById', id),
+    update: (id: string, data: any) => ipcRenderer.invoke('processTable:update', id, data),
+    delete: (id: string) => ipcRenderer.invoke('processTable:delete', id),
+    reorder: (id: string, newOrder: number) => ipcRenderer.invoke('processTable:reorder', id, newOrder),
+  },
+
+  // フロー図グループ（BpmnDiagramTable）操作
+  bpmnDiagramTable: {
+    create: (data: any) => ipcRenderer.invoke('bpmnDiagramTable:create', data),
+    getByProject: (projectId: string) => ipcRenderer.invoke('bpmnDiagramTable:getByProject', projectId),
+    getById: (id: string) => ipcRenderer.invoke('bpmnDiagramTable:getById', id),
+    update: (data: any) => ipcRenderer.invoke('bpmnDiagramTable:update', data),
+    delete: (id: string) => ipcRenderer.invoke('bpmnDiagramTable:delete', id),
+    reorder: (data: any) => ipcRenderer.invoke('bpmnDiagramTable:reorder', data),
+  },
+
+  // マニュアルグループ（ManualTable）操作
+  manualTable: {
+    create: (data: any) => ipcRenderer.invoke('manualTable:create', data),
+    getByProject: (projectId: string) => ipcRenderer.invoke('manualTable:getByProject', projectId),
+    getById: (id: string) => ipcRenderer.invoke('manualTable:getById', id),
+    update: (data: any) => ipcRenderer.invoke('manualTable:update', data),
+    delete: (id: string) => ipcRenderer.invoke('manualTable:delete', id),
+    reorder: (data: any) => ipcRenderer.invoke('manualTable:reorder', data),
+  },
+
   // 工程操作
   process: {
     create: (data: any) => ipcRenderer.invoke('process:create', data),

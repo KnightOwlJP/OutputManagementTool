@@ -102,6 +102,26 @@ function createTables(): void {
     );
   `);
 
+  // process_tablesテーブル（工程表ドキュメント）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS process_tables (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
+      description TEXT,
+      parent_process_ids TEXT,  -- JSON配列形式で複数の親工程IDを保存
+      display_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      metadata TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_process_tables_project_id ON process_tables(project_id);
+    CREATE INDEX IF NOT EXISTS idx_process_tables_level ON process_tables(level);
+  `);
+
   // processesテーブル
   // 📝 注意: 列項目はユーザーからのフィードバックを受けて今後追加・変更される予定
   // metadata フィールドを使用して拡張可能な設計としています
@@ -109,6 +129,7 @@ function createTables(): void {
     CREATE TABLE IF NOT EXISTS processes (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
+      process_table_id TEXT,
       name TEXT NOT NULL,
       level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
       parent_id TEXT,
@@ -127,12 +148,35 @@ function createTables(): void {
       updated_at INTEGER NOT NULL,
       metadata TEXT,  -- 🔄 将来の列追加に対応（JSON形式で任意の追加項目を保存）
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE,
       FOREIGN KEY (parent_id) REFERENCES processes(id) ON DELETE CASCADE
     );
 
     CREATE INDEX IF NOT EXISTS idx_processes_project_id ON processes(project_id);
+    CREATE INDEX IF NOT EXISTS idx_processes_process_table_id ON processes(process_table_id);
     CREATE INDEX IF NOT EXISTS idx_processes_parent_id ON processes(parent_id);
     CREATE INDEX IF NOT EXISTS idx_processes_level ON processes(level);
+  `);
+
+  // bpmn_diagram_tablesテーブル
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bpmn_diagram_tables (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
+      description TEXT,
+      process_table_id TEXT,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      metadata TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bpmn_diagram_tables_project_id ON bpmn_diagram_tables(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bpmn_diagram_tables_process_table_id ON bpmn_diagram_tables(process_table_id);
   `);
 
   // bpmn_diagramsテーブル
@@ -140,16 +184,22 @@ function createTables(): void {
     CREATE TABLE IF NOT EXISTS bpmn_diagrams (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
+      bpmn_diagram_table_id TEXT,
+      process_table_id TEXT,
       name TEXT NOT NULL,
       xml_content TEXT NOT NULL,
       process_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (bpmn_diagram_table_id) REFERENCES bpmn_diagram_tables(id) ON DELETE CASCADE,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE SET NULL,
       FOREIGN KEY (process_id) REFERENCES processes(id) ON DELETE SET NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_bpmn_diagrams_project_id ON bpmn_diagrams(project_id);
+    CREATE INDEX IF NOT EXISTS idx_bpmn_diagrams_bpmn_diagram_table_id ON bpmn_diagrams(bpmn_diagram_table_id);
+    CREATE INDEX IF NOT EXISTS idx_bpmn_diagrams_process_table_id ON bpmn_diagrams(process_table_id);
   `);
 
   // versionsテーブル
@@ -172,11 +222,34 @@ function createTables(): void {
     CREATE INDEX IF NOT EXISTS idx_versions_timestamp ON versions(timestamp);
   `);
 
+  // manual_tablesテーブル
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS manual_tables (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
+      description TEXT,
+      process_table_id TEXT,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      metadata TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_manual_tables_project_id ON manual_tables(project_id);
+    CREATE INDEX IF NOT EXISTS idx_manual_tables_process_table_id ON manual_tables(process_table_id);
+  `);
+
   // manualsテーブル（将来拡張）
   db.exec(`
     CREATE TABLE IF NOT EXISTS manuals (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
+      manual_table_id TEXT,
+      process_table_id TEXT,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
       target_process_level TEXT DEFAULT 'detail',
@@ -187,10 +260,14 @@ function createTables(): void {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       metadata TEXT,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (manual_table_id) REFERENCES manual_tables(id) ON DELETE CASCADE,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE SET NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_manuals_project_id ON manuals(project_id);
+    CREATE INDEX IF NOT EXISTS idx_manuals_manual_table_id ON manuals(manual_table_id);
+    CREATE INDEX IF NOT EXISTS idx_manuals_process_table_id ON manuals(process_table_id);
     CREATE INDEX IF NOT EXISTS idx_manuals_status ON manuals(status);
   `);
 

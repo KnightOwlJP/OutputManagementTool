@@ -11,6 +11,7 @@ type ProcessLevel = 'large' | 'medium' | 'small' | 'detail';
 interface Process {
   id: string;
   projectId: string;
+  processTableId?: string;
   name: string;
   level: ProcessLevel;
   parentId?: string;
@@ -32,6 +33,7 @@ interface Process {
 
 interface CreateProcessDto {
   projectId: string;
+  processTableId?: string;
   name: string;
   level: ProcessLevel;
   parentId?: string;
@@ -100,15 +102,16 @@ export function registerProcessHandlers(): void {
       // データベースに保存
       const stmt = db.prepare(`
         INSERT INTO processes (
-          id, project_id, name, level, parent_id, department, assignee, 
+          id, project_id, process_table_id, name, level, parent_id, department, assignee, 
           document_type, start_date, end_date, description, display_order, 
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       stmt.run(
         processId,
         data.projectId,
+        data.processTableId || null,
         data.name,
         data.level,
         data.parentId || null,
@@ -126,6 +129,7 @@ export function registerProcessHandlers(): void {
       const process: Process = {
         id: processId,
         projectId: data.projectId,
+        processTableId: data.processTableId,
         name: data.name,
         level: data.level,
         parentId: data.parentId,
@@ -154,7 +158,7 @@ export function registerProcessHandlers(): void {
       const db = getDatabase();
       const stmt = db.prepare(`
         SELECT 
-          id, project_id, name, level, parent_id, department, assignee,
+          id, project_id, process_table_id, name, level, parent_id, department, assignee,
           document_type, start_date, end_date, status, description,
           bpmn_element_id, has_manual, manual_id, display_order,
           created_at, updated_at, metadata
@@ -166,6 +170,7 @@ export function registerProcessHandlers(): void {
       const rows = stmt.all(projectId) as Array<{
         id: string;
         project_id: string;
+        process_table_id: string;
         name: string;
         level: ProcessLevel;
         parent_id: string | null;
@@ -188,6 +193,7 @@ export function registerProcessHandlers(): void {
       const processes: Process[] = rows.map((row) => ({
         id: row.id,
         projectId: row.project_id,
+        processTableId: row.process_table_id || undefined,
         name: row.name,
         level: row.level,
         parentId: row.parent_id || undefined,
@@ -221,7 +227,7 @@ export function registerProcessHandlers(): void {
       const db = getDatabase();
       const stmt = db.prepare(`
         SELECT 
-          id, project_id, name, level, parent_id, department, assignee,
+          id, project_id, process_table_id, name, level, parent_id, department, assignee,
           document_type, start_date, end_date, status, description,
           bpmn_element_id, has_manual, manual_id, display_order,
           created_at, updated_at, metadata
@@ -232,6 +238,7 @@ export function registerProcessHandlers(): void {
       const row = stmt.get(processId) as {
         id: string;
         project_id: string;
+        process_table_id: string | null;
         name: string;
         level: ProcessLevel;
         parent_id: string | null;
@@ -258,6 +265,7 @@ export function registerProcessHandlers(): void {
       const process: Process = {
         id: row.id,
         projectId: row.project_id,
+        processTableId: row.process_table_id || undefined,
         name: row.name,
         level: row.level,
         parentId: row.parent_id || undefined,

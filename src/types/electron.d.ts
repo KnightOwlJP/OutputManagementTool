@@ -13,6 +13,30 @@ export interface ElectronAPI {
     importExcel: (projectId: string, filePath: string) => Promise<any>;
     exportExcel: (projectId: string, fileName: string) => Promise<string>;
   };
+  processTable: {
+    create: (data: any) => Promise<any>;
+    getByProject: (projectId: string) => Promise<any[]>;
+    getById: (id: string) => Promise<any>;
+    update: (data: any) => Promise<any>;
+    delete: (id: string) => Promise<boolean>;
+    reorder: (data: any) => Promise<boolean>;
+  };
+  bpmnDiagramTable: {
+    create: (data: any) => Promise<any>;
+    getByProject: (projectId: string) => Promise<any[]>;
+    getById: (id: string) => Promise<any>;
+    update: (data: any) => Promise<any>;
+    delete: (id: string) => Promise<boolean>;
+    reorder: (data: any) => Promise<boolean>;
+  };
+  manualTable: {
+    create: (data: any) => Promise<any>;
+    getByProject: (projectId: string) => Promise<any[]>;
+    getById: (id: string) => Promise<any>;
+    update: (data: any) => Promise<any>;
+    delete: (id: string) => Promise<boolean>;
+    reorder: (data: any) => Promise<boolean>;
+  };
   process: {
     create: (data: CreateProcessDto) => Promise<Process>;
     getById: (processId: string) => Promise<Process>;
@@ -81,6 +105,7 @@ export interface UpdateProjectDto {
 
 export interface CreateProcessDto {
   projectId: string;
+  processTableId?: string;
   name: string;
   level: ProcessLevel;
   parentId?: string;
@@ -105,6 +130,7 @@ export interface UpdateProcessDto {
 
 export interface CreateBpmnDto {
   projectId: string;
+  bpmnDiagramTableId?: string;
   name: string;
   xmlContent?: string;
   processId?: string;
@@ -141,12 +167,14 @@ export interface UpdateManualDto {
 }
 
 export interface GenerateManualOptions {
+  manualTableId?: string;
   title?: string;
   includeDetailProcesses?: boolean;
 }
 
 export interface GenerateManualDto {
   projectId: string;
+  manualTableId?: string;
   title: string;
   options?: GenerateManualOptions;
 }

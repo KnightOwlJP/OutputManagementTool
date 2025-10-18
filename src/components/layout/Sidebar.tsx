@@ -7,6 +7,7 @@ import {
   HomeIcon,
   FolderIcon,
   BookOpenIcon,
+  Cog6ToothIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
@@ -21,6 +22,7 @@ const navigation: NavItem[] = [
   { name: 'ホーム', href: '/', icon: HomeIcon },
   { name: 'プロジェクト', href: '/projects', icon: FolderIcon },
   { name: 'マニュアル', href: '/manual', icon: BookOpenIcon },
+  { name: '設定', href: '/settings', icon: Cog6ToothIcon },
 ];
 
 export function Sidebar() {

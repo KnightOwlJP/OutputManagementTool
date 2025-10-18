@@ -48,31 +48,33 @@ export function ProcessForm({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // プロセスデータが変更されたらフォームを更新
+  // モーダルが開かれるたびにフォームをリセット
   useEffect(() => {
-    if (process) {
-      setFormData({
-        name: process.name,
-        level: process.level,
-        parentId: process.parentId,
-        department: process.department || '',
-        assignee: process.assignee || '',
-        documentType: process.documentType || '',
-        description: process.description || '',
-      });
-    } else {
-      setFormData({
-        name: '',
-        level: defaultLevel || 'large',
-        parentId: parentId,
-        department: '',
-        assignee: '',
-        documentType: '',
-        description: '',
-      });
+    if (isOpen) {
+      if (process) {
+        setFormData({
+          name: process.name,
+          level: process.level,
+          parentId: process.parentId,
+          department: process.department || '',
+          assignee: process.assignee || '',
+          documentType: process.documentType || '',
+          description: process.description || '',
+        });
+      } else {
+        setFormData({
+          name: '',
+          level: defaultLevel || 'large',
+          parentId: parentId,
+          department: '',
+          assignee: '',
+          documentType: '',
+          description: '',
+        });
+      }
+      setErrors({});
     }
-    setErrors({});
-  }, [process, projectId, parentId, defaultLevel]);
+  }, [isOpen, process, projectId, parentId, defaultLevel]);
 
   // バリデーション
   const validate = (): boolean => {
@@ -146,7 +148,10 @@ export function ProcessForm({
           label="工程レベル"
           placeholder="レベルを選択"
           selectedKeys={[formData.level]}
-          onChange={(e) => handleLevelChange(e.target.value as ProcessLevel)}
+          onSelectionChange={(keys) => {
+            const selectedKey = Array.from(keys)[0] as ProcessLevel;
+            if (selectedKey) handleLevelChange(selectedKey);
+          }}
           isDisabled={!!process || !!defaultLevel}
           isRequired
           variant="bordered"
@@ -174,7 +179,7 @@ export function ProcessForm({
           label="工程名"
           placeholder="工程名を入力"
           value={formData.name}
-          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+          onValueChange={(value) => setFormData(prev => ({ ...prev, name: value }))}
           isRequired
           isInvalid={!!errors.name}
           errorMessage={errors.name}
@@ -191,7 +196,7 @@ export function ProcessForm({
             label="部署名"
             placeholder="部署名を入力"
             value={formData.department}
-            onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
             isRequired
             isInvalid={!!errors.department}
             errorMessage={errors.department}
@@ -207,7 +212,7 @@ export function ProcessForm({
             label="作業実行者"
             placeholder="作業実行者を入力"
             value={formData.assignee}
-            onChange={(e) => setFormData(prev => ({ ...prev, assignee: e.target.value }))}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, assignee: value }))}
             isRequired
             isInvalid={!!errors.assignee}
             errorMessage={errors.assignee}
@@ -224,7 +229,7 @@ export function ProcessForm({
             label="帳票種類"
             placeholder="帳票種類を入力"
             value={formData.documentType}
-            onChange={(e) => setFormData(prev => ({ ...prev, documentType: e.target.value }))}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, documentType: value }))}
             isRequired
             isInvalid={!!errors.documentType}
             errorMessage={errors.documentType}
@@ -241,7 +246,7 @@ export function ProcessForm({
           label="説明"
           placeholder="工程の説明を入力"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onValueChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
           minRows={4}
           maxRows={8}
           description="この工程の目的や注意事項などを記載してください"

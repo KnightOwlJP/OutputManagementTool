@@ -31,6 +31,7 @@ interface BpmnDiagram {
 
 interface CreateBpmnDto {
   projectId: string;
+  bpmnDiagramTableId?: string;
   name: string;
   xmlContent?: string;
 }
@@ -80,17 +81,22 @@ export function registerBpmnHandlers(): void {
       // xmlContentが未指定の場合はデフォルトを使用
       const xmlContent = data.xmlContent || DEFAULT_BPMN_XML;
 
-      // BPMNファイルを保存
-      const filePath = saveBpmnFile(data.projectId, bpmnId, xmlContent);
-
       // データベースに保存
       const stmt = db.prepare(`
         INSERT INTO bpmn_diagrams (
-          id, project_id, name, file_path, version, created_at, updated_at
+          id, project_id, bpmn_diagram_table_id, name, xml_content, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
-      stmt.run(bpmnId, data.projectId, data.name, filePath, 1, now, now);
+      stmt.run(
+        bpmnId,
+        data.projectId,
+        data.bpmnDiagramTableId || null,
+        data.name,
+        xmlContent,
+        now,
+        now
+      );
 
       const bpmnDiagram: BpmnDiagram = {
         id: bpmnId,

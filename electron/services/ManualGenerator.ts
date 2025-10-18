@@ -61,6 +61,7 @@ export interface ManualSection {
 }
 
 export interface GenerateOptions {
+  manualTableId?: string; // マニュアルグループID
   includeLevels: ProcessLevel[];
   includeProcessIds?: string[];
   template?: 'business' | 'operation' | 'flowchart' | 'custom';
@@ -286,15 +287,16 @@ export class ManualGenerator {
     // データベースに保存
     const stmt = this.getDb().prepare(`
       INSERT INTO manuals (
-        id, project_id, title, content, target_process_level,
+        id, project_id, manual_table_id, title, content, target_process_level,
         version, linked_flow_version, status, author,
         auto_generated, last_sync_at, created_at, updated_at, metadata
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
       manual.id,
       manual.projectId,
+      options.manualTableId || null,
       manual.title,
       manual.content,
       manual.targetProcessLevel,
