@@ -12,7 +12,9 @@ import {
   ArrowLeftIcon, 
   Cog6ToothIcon, 
   ArrowDownTrayIcon,
-  SparklesIcon 
+  SparklesIcon,
+  PencilIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProcessTable, Swimlane, CustomColumn, Process } from '@/types/models';
@@ -26,6 +28,7 @@ import {
   DataObjectManagement 
 } from '@/components/processTable';
 import { BpmnViewer } from '@/components/process/BpmnViewer';
+import { BpmnEditor } from '@/components/bpmn/BpmnEditor';
 
 export function ProcessTableDetailClientPage() {
   const params = useParams();
@@ -41,6 +44,8 @@ export function ProcessTableDetailClientPage() {
   const [dataObjectCount, setDataObjectCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('processes');
+  const [bpmnEditMode, setBpmnEditMode] = useState<boolean>(false); // Phase 9.1: 編集モード切り替え
+  const [bpmnXml, setBpmnXml] = useState<string | undefined>(); // Phase 9.1: BPMN XML状態
 
   // URLからIDを抽出
   useEffect(() => {
@@ -139,6 +144,44 @@ export function ProcessTableDetailClientPage() {
       const { data: dataObjectData, error: dataObjectError } = await dataObjectIPC.getByProcessTable(processTableId);
       if (!dataObjectError && dataObjectData) {
         setDataObjectCount(dataObjectData.length);
+      }
+
+      // Phase 9.1: BPMN同期状態を取得（編集モード用）
+      try {
+        const syncState = await window.electronAPI.bpmnSync.getSyncState(processTableId);
+        if (syncState && syncState.bpmnXml) {
+          setBpmnXml(syncState.bpmnXml);
+        } else {
+          // 同期状態がない場合は工程データから自動生成
+          if (allProcesses && allProcesses.length > 0) {
+            console.log('[ProcessTableDetail] Auto-generating BPMN XML from processes');
+            const { exportProcessTableToBpmnXml } = await import('@/lib/bpmn-xml-exporter');
+            const result = await exportProcessTableToBpmnXml({
+              processTable: tableData,
+              processes: allProcesses,
+              swimlanes: swimlaneData || [],
+              autoLayout: true,
+            });
+            setBpmnXml(result.xml);
+          }
+        }
+      } catch (error) {
+        console.log('[ProcessTableDetail] No BPMN sync state found, auto-generating from processes');
+        // エラー時も工程データから自動生成を試みる
+        if (allProcesses && allProcesses.length > 0) {
+          try {
+            const { exportProcessTableToBpmnXml } = await import('@/lib/bpmn-xml-exporter');
+            const result = await exportProcessTableToBpmnXml({
+              processTable: tableData,
+              processes: allProcesses,
+              swimlanes: swimlaneData || [],
+              autoLayout: true,
+            });
+            setBpmnXml(result.xml);
+          } catch (genError) {
+            console.error('[ProcessTableDetail] Failed to auto-generate BPMN:', genError);
+          }
+        }
       }
 
     } catch (error) {
@@ -389,16 +432,105 @@ export function ProcessTableDetailClientPage() {
               </Tab>
               <Tab key="bpmn" title="BPMNフロー図">
                 <div className="p-6">
-                  <BpmnViewer
-                    processes={processes}
-                    projectId={projectId}
-                    height="700px"
-                    onElementClick={(elementId) => {
-                      console.log('[BPMN] Element clicked:', elementId);
-                      // 工程をクリックした際の処理（オプショナル）
-                      // 例: 該当工程の詳細を表示、編集モーダルを開く等
-                    }}
-                  />
+                  {/* Phase 9.1: 表示/編集モード切り替え */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      {!bpmnEditMode ? (
+                        <Button
+                          color="primary"
+                          size="sm"
+                          startContent={<PencilIcon className="w-4 h-4" />}
+                          onPress={() => setBpmnEditMode(true)}
+                        >
+                          編集モードに切り替え
+                        </Button>
+                      ) : (
+                        <Button
+                          color="default"
+                          size="sm"
+                          startContent={<EyeIcon className="w-4 h-4" />}
+                          onPress={() => setBpmnEditMode(false)}
+                        >
+                          表示モードに切り替え
+                        </Button>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {bpmnEditMode ? (
+                        <span className="flex items-center gap-2">
+                          <PencilIcon className="w-4 h-4" />
+                          編集モード: BPMN図を直接編集できます
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <EyeIcon className="w-4 h-4" />
+                          表示モード: 工程表から自動生成
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* BPMNビューアまたはエディタ */}
+                  {!bpmnEditMode ? (
+                    <BpmnViewer
+                      processes={processes}
+                      projectId={projectId}
+                      height="700px"
+                      onElementClick={(elementId) => {
+                        console.log('[BPMN] Element clicked:', elementId);
+                        // 工程をクリックした際の処理（オプショナル）
+                        // 例: 該当工程の詳細を表示、編集モーダルを開く等
+                      }}
+                    />
+                  ) : (
+                    <BpmnEditor
+                      projectId={projectId}
+                      diagramId={processTableId}
+                      initialXml={bpmnXml}
+                      onSave={async (xml) => {
+                        try {
+                          showToast('info', 'BPMN変更を工程表に同期中...');
+                          
+                          // Phase 9.1: BPMN同期状態を取得
+                          const syncState = await window.electronAPI.bpmnSync.getSyncState(processTableId);
+                          const currentVersion = syncState?.version || 0;
+                          
+                          // Phase 9.1: BPMN XMLを保存し、工程表に同期
+                          const syncResult = await window.electronAPI.bpmnSync.syncToProcessTable({
+                            processTableId: processTableId,
+                            bpmnXml: xml,
+                            version: currentVersion,
+                          });
+                          
+                          if (!syncResult.success) {
+                            if (syncResult.conflicts && syncResult.conflicts.length > 0) {
+                              const conflict = syncResult.conflicts[0];
+                              showToast('error', `競合が検出されました: ${conflict.message}`);
+                              // 最新の状態を再読み込み
+                              await loadData();
+                              return;
+                            }
+                            throw new Error('同期に失敗しました');
+                          }
+                          
+                          // 成功時はローカル状態を更新
+                          setBpmnXml(xml);
+                          
+                          // 工程データを再読み込み（BPMN→工程表の変更を反映）
+                          await loadData();
+                          
+                          showToast('success', `BPMNを保存し、工程表に同期しました（${syncResult.updatedProcesses?.length || 0}件の工程を更新）`);
+                        } catch (error) {
+                          console.error('[BPMN Editor] Save error:', error);
+                          showToast('error', `BPMN保存に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+                        }
+                      }}
+                      onError={(error) => {
+                        console.error('[BPMN Editor] Error:', error);
+                        showToast('error', `BPMNエディタエラー: ${error.message}`);
+                      }}
+                    />
+                  )}
                 </div>
               </Tab>
             </Tabs>

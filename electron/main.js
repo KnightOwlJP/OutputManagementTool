@@ -12,6 +12,7 @@ const logger_1 = require("./utils/logger");
 const project_handlers_1 = require("./ipc/project.handlers");
 const process_handlers_1 = require("./ipc/process.handlers");
 const bpmn_handlers_1 = require("./ipc/bpmn.handlers");
+const bpmnSync_handlers_1 = require("./ipc/bpmnSync.handlers"); // Phase 9.1: BPMN双方向同期
 const version_handlers_1 = require("./ipc/version.handlers");
 const manual_handlers_1 = require("./ipc/manual.handlers");
 const customColumn_handlers_1 = require("./ipc/customColumn.handlers");
@@ -168,6 +169,7 @@ electron_1.app.whenReady().then(async () => {
         // V2: データオブジェクト管理（新規）
         (0, dataObject_handlers_1.registerDataObjectHandlers)();
         (0, bpmn_handlers_1.registerBpmnHandlers)();
+        (0, bpmnSync_handlers_1.registerBpmnSyncHandlers)(); // Phase 9.1: BPMN双方向同期
         (0, version_handlers_1.registerVersionHandlers)();
         // registerSyncHandlers(); // Phase 8: BPMN⇔工程同期（Phase 9では非推奨）
         (0, manual_handlers_1.registerManualHandlers)(); // Phase 6.2.3: マニュアル機能

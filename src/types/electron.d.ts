@@ -1,5 +1,4 @@
 // Electron API型定義
-import type { DetailTable } from './project.types';
 import type { 
   ProcessTable, 
   Swimlane, 
@@ -131,6 +130,14 @@ export interface ElectronAPI {
       error?: string;
     }>;
   };
+  // カスタム列管理
+  customColumn: {
+    create: (data: any) => Promise<CustomColumn>;
+    getByProject: (projectId: string) => Promise<CustomColumn[]>;
+    update: (columnId: string, data: any) => Promise<CustomColumn>;
+    delete: (columnId: string) => Promise<void>;
+    reorder: (updates: Array<{ id: string; displayOrder: number }>) => Promise<void>;
+  };
   // Phase 9: BPMNフロー図管理（工程表から自動生成、読み取り専用）
   bpmnDiagramTable: {
     getByProject: (projectId: string) => Promise<BpmnDiagram[]>;
@@ -138,6 +145,16 @@ export interface ElectronAPI {
     getByProcessTable: (processTableId: string) => Promise<BpmnDiagram | null>;
     update: (bpmnId: string, data: { name?: string; xmlContent?: string }) => Promise<BpmnDiagram>;
     delete: (bpmnId: string) => Promise<void>;
+  };
+  // Phase 9.1: BPMN双方向同期API
+  bpmnSync: {
+    getSyncState: (processTableId: string) => Promise<BpmnSyncState | null>;
+    syncToProcessTable: (params: {
+      processTableId: string;
+      bpmnXml: string;
+      version: number;
+    }) => Promise<SyncResult>;
+    syncToBpmn: (processTableId: string) => Promise<void>;
   };
   // Phase 9: マニュアル管理（工程表から自動生成、読み取り専用）
   manualTable: {
@@ -263,6 +280,30 @@ export interface UpdateDataObjectDto {
   name?: string;
   type?: 'input' | 'output' | 'both';
   description?: string;
+}
+
+// Phase 9.1: BPMN同期関連の型定義
+export interface BpmnSyncState {
+  id: string;
+  processTableId: string;
+  bpmnXml: string;
+  lastSyncedAt: number;
+  lastModifiedBy: 'process' | 'bpmn';
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SyncResult {
+  success: boolean;
+  conflicts?: Array<{
+    type: 'version_mismatch' | 'concurrent_edit';
+    message: string;
+    expectedVersion: number;
+    actualVersion: number;
+  }>;
+  updatedProcesses?: any[];
+  newVersion: number;
 }
 
 // 他の型定義のインポート（models.tsから取得）

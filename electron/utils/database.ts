@@ -179,6 +179,7 @@ function createTables(): void {
 
   // ==========================================
   // V2: 工程（Process）- BPMN 2.0完全統合
+  // Phase 9.1: BPMN位置情報とタイプを追加
   // ==========================================
   db.exec(`
     CREATE TABLE IF NOT EXISTS processes (
@@ -192,6 +193,10 @@ function createTables(): void {
       -- BPMN要素タイプ
       bpmn_element TEXT NOT NULL DEFAULT 'task',
       task_type TEXT,
+      
+      -- Phase 9.1: BPMN位置情報（JSON: {x, y, width, height}）
+      bpmn_position TEXT,
+      bpmn_element_type TEXT,
       
       -- フロー制御
       before_process_ids TEXT,
@@ -380,7 +385,57 @@ function createTables(): void {
     CREATE INDEX IF NOT EXISTS idx_versions_timestamp ON versions(timestamp);
   `);
 
+  // ==========================================
+  // Phase 9.1: BPMN-工程表 双方向同期
+  // ==========================================
+  
+  // BPMN同期状態管理
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bpmn_sync_state (
+      id TEXT PRIMARY KEY,
+      process_table_id TEXT NOT NULL UNIQUE,
+      bpmn_xml TEXT NOT NULL,
+      last_synced_at INTEGER NOT NULL,
+      last_modified_by TEXT NOT NULL CHECK(last_modified_by IN ('process', 'bpmn')),
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bpmn_sync_state_process_table 
+      ON bpmn_sync_state(process_table_id);
+    CREATE INDEX IF NOT EXISTS idx_bpmn_sync_state_version 
+      ON bpmn_sync_state(version);
+  `);
+
+  // 同期トランザクションログ
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sync_transactions (
+      id TEXT PRIMARY KEY,
+      process_table_id TEXT NOT NULL,
+      source TEXT NOT NULL CHECK(source IN ('process', 'bpmn')),
+      operation TEXT NOT NULL CHECK(operation IN ('create', 'update', 'delete', 'reorder', 'move')),
+      entity_type TEXT NOT NULL CHECK(entity_type IN ('process', 'lane', 'gateway', 'edge', 'event')),
+      entity_id TEXT,
+      changes TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'applied', 'failed', 'conflict')),
+      error_message TEXT,
+      created_at INTEGER NOT NULL,
+      applied_at INTEGER,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sync_transactions_process_table 
+      ON sync_transactions(process_table_id);
+    CREATE INDEX IF NOT EXISTS idx_sync_transactions_status 
+      ON sync_transactions(status);
+    CREATE INDEX IF NOT EXISTS idx_sync_transactions_created_at 
+      ON sync_transactions(created_at DESC);
+  `);
+
   console.log('[Database] V2 tables created successfully');
+  console.log('[Database] Phase 9.1 sync tables created successfully');
 }
 
 /**
@@ -400,7 +455,9 @@ function runMigrations(): void {
 
   // ==========================================
   // V2: マイグレーション定義
-  // 既存データは全破棄し、新しいスキーマで再構築
+  // 方針: 旧データは全破棄し、新スキーマで再構築
+  // 新規インストールでもマイグレーション履歴が正しく記録されるよう、
+  // v2_001（削除）→ v2_002（作成）→ v2_003（Phase 9.1）の順で実行
   // ==========================================
   const migrations: Array<{ version: string; up: () => void }> = [
     {
@@ -423,99 +480,36 @@ function runMigrations(): void {
         `);
         
         console.log('[Migration] v2_001_drop_old_tables: Old tables dropped successfully');
-        console.log('[Migration] Note: V2 tables will be created by createTables()');
       }
     },
     {
       version: 'v2_002_initial_schema',
       up: () => {
-        // V2のテーブルはcreateTablesで作成済み
+        // V2のテーブルはcreateTables()で作成済み
+        // このマイグレーションは履歴記録のみ
         console.log('[Migration] v2_002_initial_schema: V2 schema created via createTables()');
       }
     },
     {
-      version: 'v2_003_adjust_process_schema_for_bpmn',
+      version: 'v2_003_phase_9_1_bpmn_sync',
       up: () => {
-        console.log('[Migration] v2_003_adjust_process_schema_for_bpmn: Adjusting schema for BPMN 2.0...');
+        console.log('[Migration] v2_003_phase_9_1_bpmn_sync: Adding Phase 9.1 columns...');
         
-        db!.exec(`
-          -- ステップテーブルを削除（存在する場合）
-          DROP TABLE IF EXISTS process_table_steps;
-          
-          -- プールテーブルを削除（存在する場合）
-          DROP TABLE IF EXISTS process_table_pools;
-          
-          -- processesテーブルをBPMN 2.0標準に調整
-          -- swimlane文字列 → lane_id参照
-          -- bpmn_elementを追加
-          CREATE TABLE processes_new (
-            id TEXT PRIMARY KEY,
-            process_table_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            lane_id TEXT NOT NULL,
-            bpmn_element TEXT NOT NULL DEFAULT 'task',
-            task_type TEXT,
-            before_process_ids TEXT,
-            next_process_ids TEXT,
-            documentation TEXT,
-            gateway_type TEXT,
-            conditional_flows TEXT,
-            event_type TEXT,
-            intermediate_event_type TEXT,
-            event_details TEXT,
-            input_data_objects TEXT,
-            output_data_objects TEXT,
-            message_flows TEXT,
-            artifacts TEXT,
-            custom_columns TEXT,
-            display_order INTEGER NOT NULL,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE,
-            FOREIGN KEY (lane_id) REFERENCES process_table_swimlanes(id) ON DELETE CASCADE
-          );
-          
-          -- 既存データを移行
-          -- swimlane名からlane_idを取得
-          INSERT INTO processes_new (
-            id, process_table_id, name, lane_id, bpmn_element, task_type,
-            before_process_ids, next_process_ids, documentation,
-            gateway_type, conditional_flows, event_type,
-            intermediate_event_type, event_details,
-            input_data_objects, output_data_objects,
-            message_flows, artifacts, custom_columns,
-            display_order, created_at, updated_at
-          )
-          SELECT 
-            p.id, p.process_table_id, p.name,
-            COALESCE(
-              (SELECT s.id FROM process_table_swimlanes s 
-               WHERE s.process_table_id = p.process_table_id AND s.name = p.swimlane),
-              (SELECT s.id FROM process_table_swimlanes s 
-               WHERE s.process_table_id = p.process_table_id LIMIT 1)
-            ) as lane_id,
-            'task' as bpmn_element,
-            COALESCE(p.task_type, 'userTask') as task_type,
-            p.before_process_ids, p.next_process_ids, p.documentation,
-            p.gateway_type, p.conditional_flows, p.event_type,
-            p.intermediate_event_type, p.event_details,
-            p.input_data_objects, p.output_data_objects,
-            p.message_flows, p.artifacts, p.custom_columns,
-            p.display_order, p.created_at, p.updated_at
-          FROM processes p;
-          
-          -- 古いテーブルを削除し、新しいテーブルをリネーム
-          DROP TABLE processes;
-          ALTER TABLE processes_new RENAME TO processes;
-          
-          -- インデックスを再作成
-          CREATE INDEX IF NOT EXISTS idx_processes_table_id ON processes(process_table_id);
-          CREATE INDEX IF NOT EXISTS idx_processes_lane ON processes(lane_id);
-          CREATE INDEX IF NOT EXISTS idx_processes_bpmn_element ON processes(bpmn_element);
-          CREATE INDEX IF NOT EXISTS idx_processes_task_type ON processes(task_type);
-        `);
+        // processesテーブルにBPMN位置情報カラムを追加
+        const columns = db!.prepare(`PRAGMA table_info(processes)`).all() as any[];
+        const columnNames = columns.map((col: any) => col.name);
         
-        console.log('[Migration] v2_003_adjust_process_schema_for_bpmn: Migration completed successfully');
+        if (!columnNames.includes('bpmn_position')) {
+          db!.exec(`ALTER TABLE processes ADD COLUMN bpmn_position TEXT;`);
+          console.log('[Migration] Added bpmn_position column');
+        }
+        
+        if (!columnNames.includes('bpmn_element_type')) {
+          db!.exec(`ALTER TABLE processes ADD COLUMN bpmn_element_type TEXT;`);
+          console.log('[Migration] Added bpmn_element_type column');
+        }
+        
+        console.log('[Migration] v2_003_phase_9_1_bpmn_sync: Migration completed successfully');
       }
     }
   ];

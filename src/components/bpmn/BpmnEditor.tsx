@@ -216,107 +216,124 @@ export const BpmnEditor = memo(function BpmnEditor({
   }, [diagramId, onError]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}>
       {/* ツールバー */}
-      <Card className="mb-4">
-        <CardBody>
-          <div className="flex items-center justify-between gap-4">
-            {/* 左側: 編集操作 */}
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={handleUndo}
-                isDisabled={isLoading}
-              >
-                元に戻す
-              </Button>
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={handleRedo}
-                isDisabled={isLoading}
-              >
-                やり直し
-              </Button>
-              <div className="w-px h-6 bg-gray-300 mx-2" />
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={handleZoomIn}
-                isDisabled={isLoading}
-              >
-                +
-              </Button>
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={handleZoomOut}
-                isDisabled={isLoading}
-              >
-                -
-              </Button>
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={handleZoomReset}
-                isDisabled={isLoading}
-              >
-                フィット
-              </Button>
-            </div>
+      <div className="mb-4">
+        <Card>
+          <CardBody className="py-3">
+            <div className="flex items-center justify-between gap-4">
+              {/* 左側: 編集操作 */}
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={handleUndo}
+                  isDisabled={isLoading}
+                >
+                  元に戻す
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={handleRedo}
+                  isDisabled={isLoading}
+                >
+                  やり直し
+                </Button>
+                <div className="w-px h-6 bg-gray-300 mx-2" />
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={handleZoomIn}
+                  isDisabled={isLoading}
+                >
+                  +
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={handleZoomOut}
+                  isDisabled={isLoading}
+                >
+                  -
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={handleZoomReset}
+                  isDisabled={isLoading}
+                >
+                  フィット
+                </Button>
+              </div>
 
-            {/* 右側: 保存・エクスポート */}
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={handleExportXml}
-                isDisabled={isLoading}
-              >
-                XML出力
-              </Button>
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={handleExportSvg}
-                isDisabled={isLoading}
-              >
-                SVG出力
-              </Button>
-              <Button
-                size="sm"
-                color="primary"
-                onPress={handleSave}
-                isLoading={isSaving}
-                isDisabled={isLoading || !hasChanges}
-              >
-                {isSaving ? '保存中...' : hasChanges ? '保存' : '保存済み'}
-              </Button>
+              {/* 右側: 保存・エクスポート */}
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={handleExportXml}
+                  isDisabled={isLoading}
+                >
+                  XML出力
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={handleExportSvg}
+                  isDisabled={isLoading}
+                >
+                  SVG出力
+                </Button>
+                <Button
+                  size="sm"
+                  color="primary"
+                  onPress={handleSave}
+                  isLoading={isSaving}
+                  isDisabled={isLoading || !hasChanges}
+                >
+                  {isSaving ? '保存中...' : hasChanges ? '保存' : '保存済み'}
+                </Button>
+              </div>
             </div>
-          </div>
-        </CardBody>
-      </Card>
+          </CardBody>
+        </Card>
+      </div>
 
       {/* BPMNエディタコンテナ */}
-      <Card className="flex-1">
-        <CardBody className="p-0">
-          <div
-            ref={containerRef}
-            className="w-full h-full min-h-[600px]"
-            style={{ position: 'relative' }}
-          >
-            {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-gray-600">BPMNエディタを読み込んでいます...</p>
+      <div className="flex-1 min-h-0">
+        <Card className="h-full">
+          <CardBody className="p-0 h-full">
+            <div
+              ref={containerRef}
+              className="w-full h-full bpmn-editor-container"
+              style={{ position: 'relative', backgroundColor: '#ffffff' }}
+            >
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-gray-600">BPMNエディタを読み込んでいます...</p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        </CardBody>
-      </Card>
+              )}
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+      
+      {/* bpmn-jsの背景色をオーバーライド */}
+      <style jsx global>{`
+        .bpmn-editor-container .djs-container {
+          background-color: #ffffff !important;
+        }
+        .bpmn-editor-container .djs-palette {
+          background-color: #fafafa !important;
+        }
+        .bpmn-editor-container svg {
+          background-color: #ffffff !important;
+        }
+      `}</style>
     </div>
   );
 });

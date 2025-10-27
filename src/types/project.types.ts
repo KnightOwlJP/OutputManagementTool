@@ -19,6 +19,7 @@ export type ProcessLevel = 'large' | 'medium' | 'small' | 'detail';
 /**
  * 階層構造を持つエンティティの基底インターフェース
  * Process, BpmnDiagram, Manual が継承します
+ * Phase 9: detailTableId, parentEntityId, parentId は削除されました
  */
 export interface HierarchicalEntity {
   id: string;
@@ -27,28 +28,12 @@ export interface HierarchicalEntity {
   description?: string;
   level: ProcessLevel;
   
-  // 同階層内の親子関係
-  parentId?: string;
-  
-  // 階層間の詳細化関係
-  detailTableId?: string;      // このエンティティの詳細表のルートID
-  parentEntityId?: string;     // この表がどのエンティティの詳細か
-  
   // メタデータ
   displayOrder: number;
   createdAt: Date;
   updatedAt: Date;
   metadata?: Record<string, any>;
 }
-
-/**
- * 詳細表（型としてではなく、クエリ結果として表現）
- */
-export type DetailTable<T extends HierarchicalEntity> = {
-  root: T;                   // ルートエンティティ
-  entities: T[];             // 詳細表に所属するすべてのエンティティ
-  parentEntity?: T;          // 上位エンティティ（存在する場合）
-};
 
 // ============================================
 // 工程 (Process)
@@ -68,13 +53,9 @@ export interface Process extends HierarchicalEntity {
   duration?: number;
   status: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
   
-  // BPMN同期関連（旧フィールドとの互換性）
+  // BPMN同期関連
   bpmnElementId?: string;
   hasManual?: boolean;
-  
-  // 廃止予定（後方互換性のため残す）
-  /** @deprecated Use parentEntityId instead */
-  processTableId?: string;
 }
 
 // ============================================
@@ -89,12 +70,6 @@ export interface BpmnDiagram extends HierarchicalEntity {
   // BPMN固有のフィールド
   xmlContent?: string;
   version?: number;
-  
-  // 廃止予定（後方互換性のため残す）
-  /** @deprecated Use parentEntityId instead */
-  bpmnDiagramTableId?: string;
-  /** @deprecated Use processId instead */
-  processTableId?: string;
 }
 
 // ============================================
@@ -119,12 +94,6 @@ export interface Manual extends HierarchicalEntity {
   tags?: string[];
   author?: string;
   reviewers?: string[];
-  
-  // 廃止予定（後方互換性のため残す）
-  /** @deprecated Use parentEntityId instead */
-  manualTableId?: string;
-  /** @deprecated Use processId instead */
-  processTableId?: string;
 }
 
 export interface Version {
@@ -140,18 +109,9 @@ export interface Version {
 }
 
 export interface VersionSnapshot {
-  // 新しい階層構造
   processes: Process[];
   bpmnDiagrams: BpmnDiagram[];
   manuals: Manual[];
-  
-  // 廃止予定（後方互換性のため残す）
-  /** @deprecated No longer used in Phase 8+ */
-  processTables?: any[];
-  /** @deprecated No longer used in Phase 8+ */
-  bpmnDiagramTables?: any[];
-  /** @deprecated No longer used in Phase 8+ */
-  manualTables?: any[];
 }
 
 export interface ManualSection {
@@ -254,40 +214,4 @@ export interface ProcessWithSync extends Process {
 // ============================================
 // ユーティリティ関数
 // ============================================
-
-/**
- * エンティティが詳細表のルートかどうかを判定
- * ルートエンティティは parentEntityId を持つが、parentId を持たない
- */
-export function isDetailTableRoot<T extends HierarchicalEntity>(
-  entity: T
-): boolean {
-  return entity.parentEntityId != null && entity.parentId == null;
-}
-
-/**
- * エンティティが詳細表を持つかどうかを判定
- */
-export function hasDetailTable<T extends HierarchicalEntity>(
-  entity: T
-): boolean {
-  return entity.detailTableId != null;
-}
-
-/**
- * エンティティが通常のエンティティ（詳細表のルートでない）かどうかを判定
- */
-export function isRegularEntity<T extends HierarchicalEntity>(
-  entity: T
-): boolean {
-  return entity.parentEntityId == null;
-}
-
-/**
- * エンティティが詳細表に所属しているかどうかを判定
- */
-export function belongsToDetailTable<T extends HierarchicalEntity>(
-  entity: T
-): boolean {
-  return entity.parentEntityId != null;
-}
+// Phase 9: 階層構造関連のユーティリティ関数は削除されました

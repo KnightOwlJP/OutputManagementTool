@@ -60,6 +60,12 @@ const api = {
         update: (bpmnId, data) => electron_1.ipcRenderer.invoke('bpmnDiagramTable:update', bpmnId, data),
         delete: (bpmnId) => electron_1.ipcRenderer.invoke('bpmnDiagramTable:delete', bpmnId),
     },
+    // Phase 9.1: BPMN双方向同期API
+    bpmnSync: {
+        getSyncState: (processTableId) => electron_1.ipcRenderer.invoke('bpmn:getSyncState', processTableId),
+        syncToProcessTable: (params) => electron_1.ipcRenderer.invoke('bpmn:syncToProcessTable', params),
+        syncToBpmn: (processTableId) => electron_1.ipcRenderer.invoke('process:syncToBpmn', processTableId),
+    },
     // Phase 9: マニュアル管理（工程表から自動生成、読み取り専用）
     manualTable: {
         getByProject: (projectId) => electron_1.ipcRenderer.invoke('manualTable:getByProject', projectId),
@@ -88,6 +94,14 @@ const api = {
         startScheduler: (intervalHours, maxBackups, customPath) => electron_1.ipcRenderer.invoke('backup-scheduler:start', intervalHours, maxBackups, customPath),
         stopScheduler: () => electron_1.ipcRenderer.invoke('backup-scheduler:stop'),
         getSchedulerStatus: () => electron_1.ipcRenderer.invoke('backup-scheduler:status'),
+    },
+    // カスタム列管理
+    customColumn: {
+        create: (data) => electron_1.ipcRenderer.invoke('customColumn:create', data),
+        getByProject: (projectId) => electron_1.ipcRenderer.invoke('customColumn:getByProject', projectId),
+        update: (columnId, data) => electron_1.ipcRenderer.invoke('customColumn:update', columnId, data),
+        delete: (columnId) => electron_1.ipcRenderer.invoke('customColumn:delete', columnId),
+        reorder: (updates) => electron_1.ipcRenderer.invoke('customColumn:reorder', updates),
     },
     // システム情報
     system: {

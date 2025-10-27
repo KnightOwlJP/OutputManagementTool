@@ -53,6 +53,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@heroui/react": "^2.8.5",
+    "@xmldom/xmldom": "^0.8.11",
     "better-sqlite3": "^12.4.1",
     "bpmn-js": "^18.7.0",
     "date-fns": "^4.1.0",

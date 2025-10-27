@@ -120,6 +120,20 @@ const api = {
       ipcRenderer.invoke('bpmnDiagramTable:delete', bpmnId),
   },
 
+  // Phase 9.1: BPMN双方向同期API
+  bpmnSync: {
+    getSyncState: (processTableId: string) => 
+      ipcRenderer.invoke('bpmn:getSyncState', processTableId),
+    syncToProcessTable: (params: {
+      processTableId: string;
+      bpmnXml: string;
+      version: number;
+    }) => 
+      ipcRenderer.invoke('bpmn:syncToProcessTable', params),
+    syncToBpmn: (processTableId: string) => 
+      ipcRenderer.invoke('process:syncToBpmn', processTableId),
+  },
+
   // Phase 9: マニュアル管理（工程表から自動生成、読み取り専用）
   manualTable: {
     getByProject: (projectId: string): Promise<Manual[]> => 
@@ -164,6 +178,20 @@ const api = {
       ipcRenderer.invoke('backup-scheduler:stop'),
     getSchedulerStatus: () =>
       ipcRenderer.invoke('backup-scheduler:status'),
+  },
+
+  // カスタム列管理
+  customColumn: {
+    create: (data: any): Promise<CustomColumn> =>
+      ipcRenderer.invoke('customColumn:create', data),
+    getByProject: (projectId: string): Promise<CustomColumn[]> =>
+      ipcRenderer.invoke('customColumn:getByProject', projectId),
+    update: (columnId: string, data: any): Promise<CustomColumn> =>
+      ipcRenderer.invoke('customColumn:update', columnId, data),
+    delete: (columnId: string): Promise<void> =>
+      ipcRenderer.invoke('customColumn:delete', columnId),
+    reorder: (updates: Array<{ id: string; displayOrder: number }>): Promise<void> =>
+      ipcRenderer.invoke('customColumn:reorder', updates),
   },
 
   // システム情報

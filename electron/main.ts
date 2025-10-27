@@ -6,6 +6,7 @@ import { getLogger, setupGlobalErrorHandler } from './utils/logger';
 import { registerProjectHandlers } from './ipc/project.handlers';
 import { registerProcessHandlers } from './ipc/process.handlers';
 import { registerBpmnHandlers } from './ipc/bpmn.handlers';
+import { registerBpmnSyncHandlers } from './ipc/bpmnSync.handlers'; // Phase 9.1: BPMN双方向同期
 import { registerVersionHandlers } from './ipc/version.handlers';
 import { registerSyncHandlers } from './ipc/sync.handlers';
 import { registerManualHandlers } from './ipc/manual.handlers';
@@ -182,6 +183,7 @@ app.whenReady().then(async () => {
     // V2: データオブジェクト管理（新規）
     registerDataObjectHandlers();
     registerBpmnHandlers();
+    registerBpmnSyncHandlers(); // Phase 9.1: BPMN双方向同期
     registerVersionHandlers();
     // registerSyncHandlers(); // Phase 8: BPMN⇔工程同期（Phase 9では非推奨）
     registerManualHandlers(); // Phase 6.2.3: マニュアル機能
