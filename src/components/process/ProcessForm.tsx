@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Input, Textarea, Select, SelectItem } from '@heroui/react';
 import { Process, ProcessLevel } from '@/types/project.types';
 import { Button, Modal } from '@/components';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface ProcessFormProps {
   isOpen: boolean;
@@ -47,6 +48,14 @@ export function ProcessForm({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // 工程レベルの選択肢
+  const availableLevels = [
+    { key: 'large' as ProcessLevel, label: '大工程', color: '#3B82F6' },
+    { key: 'medium' as ProcessLevel, label: '中工程', color: '#10B981' },
+    { key: 'small' as ProcessLevel, label: '小工程', color: '#F59E0B' },
+    { key: 'detail' as ProcessLevel, label: '詳細工程', color: '#8B5CF6' },
+  ];
 
   // モーダルが開かれるたびにフォームをリセット
   useEffect(() => {
@@ -158,20 +167,16 @@ export function ProcessForm({
           size="lg"
           labelPlacement="outside"
           description={
-            formData.level === 'large' ? '複数の中工程をまとめる部署単位の工程' :
-            formData.level === 'medium' ? '作業実行者が行う一連の作業' :
-            formData.level === 'small' ? '特定の帳票に関する作業' :
-            '具体的な作業ステップ'
+            availableLevels.find(l => l.key === formData.level)?.label || ''
           }
           classNames={{
             listbox: "bg-white dark:bg-gray-800",
             popoverContent: "bg-white dark:bg-gray-800",
           }}
         >
-          <SelectItem key="large">{getLevelLabel('large')}</SelectItem>
-          <SelectItem key="medium">{getLevelLabel('medium')}</SelectItem>
-          <SelectItem key="small">{getLevelLabel('small')}</SelectItem>
-          <SelectItem key="detail">{getLevelLabel('detail')}</SelectItem>
+          {availableLevels.map(level => (
+            <SelectItem key={level.key}>{level.label}</SelectItem>
+          ))}
         </Select>
 
         {/* 工程名 */}

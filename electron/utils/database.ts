@@ -68,11 +68,20 @@ export function initDatabase(): void {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
 
+    // マイグレーションテーブルを先に作成
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version TEXT NOT NULL UNIQUE,
+        applied_at INTEGER NOT NULL
+      );
+    `);
+
+    // マイグレーションを実行（既存テーブル削除）
+    runMigrations();
+
     // テーブルを作成
     createTables();
-
-    // マイグレーションを実行
-    runMigrations();
 
     console.log('[Database] Database initialized successfully');
   } catch (error) {
@@ -83,11 +92,16 @@ export function initDatabase(): void {
 
 /**
  * データベーステーブルを作成
+ * V2: フラット構造への大規模リアーキテクト
  */
 function createTables(): void {
   if (!db) throw new Error('Database not initialized');
 
-  console.log('[Database] Creating tables...');
+  console.log('[Database] Creating tables for V2...');
+
+  // ==========================================
+  // V2: 新テーブル構造
+  // ==========================================
 
   // projectsテーブル
   db.exec(`
@@ -102,7 +116,10 @@ function createTables(): void {
     );
   `);
 
-  // process_tablesテーブル（工程表ドキュメント）
+  // ==========================================
+  // V2: 工程表（ProcessTable）
+  // プロジェクト内に複数作成可能
+  // ==========================================
   db.exec(`
     CREATE TABLE IF NOT EXISTS process_tables (
       id TEXT PRIMARY KEY,
@@ -110,11 +127,9 @@ function createTables(): void {
       name TEXT NOT NULL,
       level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
       description TEXT,
-      parent_process_ids TEXT,  -- JSON配列形式で複数の親工程IDを保存
       display_order INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      metadata TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
@@ -122,87 +137,230 @@ function createTables(): void {
     CREATE INDEX IF NOT EXISTS idx_process_tables_level ON process_tables(level);
   `);
 
-  // processesテーブル
-  // 📝 注意: 列項目はユーザーからのフィードバックを受けて今後追加・変更される予定
-  // metadata フィールドを使用して拡張可能な設計としています
+  // ==========================================
+  // V2: スイムレーン（工程表ごとに管理）
+  // ==========================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS process_table_swimlanes (
+      id TEXT PRIMARY KEY,
+      process_table_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL DEFAULT '#3B82F6',
+      order_num INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_swimlanes_table_id ON process_table_swimlanes(process_table_id);
+    CREATE INDEX IF NOT EXISTS idx_swimlanes_order ON process_table_swimlanes(process_table_id, order_num);
+  `);
+
+  // ==========================================
+  // V2: カスタム列定義（工程表ごとに30列まで）
+  // ==========================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS process_table_custom_columns (
+      id TEXT PRIMARY KEY,
+      process_table_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('TEXT', 'NUMBER', 'DATE', 'SELECT', 'CHECKBOX')),
+      options TEXT,
+      required INTEGER NOT NULL DEFAULT 0,
+      order_num INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_custom_columns_table_id ON process_table_custom_columns(process_table_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_columns_order ON process_table_custom_columns(process_table_id, order_num);
+  `);
+
+  // ==========================================
+  // V2: 工程（Process）- BPMN 2.0完全統合
+  // ==========================================
   db.exec(`
     CREATE TABLE IF NOT EXISTS processes (
       id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      process_table_id TEXT,
+      process_table_id TEXT NOT NULL,
+      
+      -- 基本情報（必須）
       name TEXT NOT NULL,
-      level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
-      parent_id TEXT,
-      department TEXT,
-      assignee TEXT,
-      document_type TEXT,
-      start_date INTEGER,
-      end_date INTEGER,
-      status TEXT,
-      description TEXT,
-      bpmn_element_id TEXT,
-      has_manual INTEGER DEFAULT 0,
-      manual_id TEXT,
+      lane_id TEXT NOT NULL,
+      
+      -- BPMN要素タイプ
+      bpmn_element TEXT NOT NULL DEFAULT 'task',
+      task_type TEXT,
+      
+      -- フロー制御
+      before_process_ids TEXT,
+      next_process_ids TEXT,
+      
+      -- BPMN詳細情報（任意）
+      documentation TEXT,
+      gateway_type TEXT,
+      conditional_flows TEXT,
+      
+      -- イベント情報（任意）
+      event_type TEXT,
+      intermediate_event_type TEXT,
+      event_details TEXT,
+      
+      -- データ連携（任意）
+      input_data_objects TEXT,
+      output_data_objects TEXT,
+      
+      -- メッセージ・アーティファクト（任意）
+      message_flows TEXT,
+      artifacts TEXT,
+      
+      -- カスタム列の値（JSON）
+      custom_columns TEXT,
+      
+      -- メタデータ
       display_order INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      metadata TEXT,  -- 🔄 将来の列追加に対応（JSON形式で任意の追加項目を保存）
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      
       FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE,
-      FOREIGN KEY (parent_id) REFERENCES processes(id) ON DELETE CASCADE
+      FOREIGN KEY (lane_id) REFERENCES process_table_swimlanes(id) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_processes_project_id ON processes(project_id);
-    CREATE INDEX IF NOT EXISTS idx_processes_process_table_id ON processes(process_table_id);
-    CREATE INDEX IF NOT EXISTS idx_processes_parent_id ON processes(parent_id);
-    CREATE INDEX IF NOT EXISTS idx_processes_level ON processes(level);
+    CREATE INDEX IF NOT EXISTS idx_processes_table_id ON processes(process_table_id);
+    CREATE INDEX IF NOT EXISTS idx_processes_lane ON processes(lane_id);
+    CREATE INDEX IF NOT EXISTS idx_processes_bpmn_element ON processes(bpmn_element);
+    CREATE INDEX IF NOT EXISTS idx_processes_task_type ON processes(task_type);
   `);
 
-  // bpmn_diagram_tablesテーブル
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS bpmn_diagram_tables (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
-      description TEXT,
-      process_table_id TEXT,
-      display_order INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      metadata TEXT,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE SET NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_bpmn_diagram_tables_project_id ON bpmn_diagram_tables(project_id);
-    CREATE INDEX IF NOT EXISTS idx_bpmn_diagram_tables_process_table_id ON bpmn_diagram_tables(process_table_id);
-  `);
-
-  // bpmn_diagramsテーブル
+  // ==========================================
+  // V2: BPMNダイアグラム（工程表と1対1）
+  // ==========================================
   db.exec(`
     CREATE TABLE IF NOT EXISTS bpmn_diagrams (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
-      bpmn_diagram_table_id TEXT,
-      process_table_id TEXT,
+      process_table_id TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
+      level TEXT NOT NULL,
       xml_content TEXT NOT NULL,
-      process_id TEXT,
+      version INTEGER NOT NULL DEFAULT 1,
+      layout_algorithm TEXT DEFAULT 'auto',
+      layout_metadata TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (bpmn_diagram_table_id) REFERENCES bpmn_diagram_tables(id) ON DELETE CASCADE,
-      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE SET NULL,
-      FOREIGN KEY (process_id) REFERENCES processes(id) ON DELETE SET NULL
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE
     );
 
     CREATE INDEX IF NOT EXISTS idx_bpmn_diagrams_project_id ON bpmn_diagrams(project_id);
-    CREATE INDEX IF NOT EXISTS idx_bpmn_diagrams_bpmn_diagram_table_id ON bpmn_diagrams(bpmn_diagram_table_id);
-    CREATE INDEX IF NOT EXISTS idx_bpmn_diagrams_process_table_id ON bpmn_diagrams(process_table_id);
+    CREATE INDEX IF NOT EXISTS idx_bpmn_diagrams_table_id ON bpmn_diagrams(process_table_id);
   `);
 
-  // versionsテーブル
+  // ==========================================
+  // V2: マニュアル（工程表と1対1）
+  // ==========================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS manuals (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      process_table_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      level TEXT NOT NULL,
+      content TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_manuals_project_id ON manuals(project_id);
+    CREATE INDEX IF NOT EXISTS idx_manuals_table_id ON manuals(process_table_id);
+  `);
+
+  // ==========================================
+  // V2: マニュアルセクション
+  // ==========================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS manual_sections (
+      id TEXT PRIMARY KEY,
+      manual_id TEXT NOT NULL,
+      process_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT,
+      order_num INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (manual_id) REFERENCES manuals(id) ON DELETE CASCADE,
+      FOREIGN KEY (process_id) REFERENCES processes(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_manual_sections_manual_id ON manual_sections(manual_id);
+    CREATE INDEX IF NOT EXISTS idx_manual_sections_process_id ON manual_sections(process_id);
+    CREATE INDEX IF NOT EXISTS idx_manual_sections_order ON manual_sections(manual_id, order_num);
+  `);
+
+  // ==========================================
+  // V2: マニュアル詳細ステップ
+  // ==========================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS manual_detail_steps (
+      id TEXT PRIMARY KEY,
+      section_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT,
+      order_num INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (section_id) REFERENCES manual_sections(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_detail_steps_section_id ON manual_detail_steps(section_id);
+    CREATE INDEX IF NOT EXISTS idx_detail_steps_order ON manual_detail_steps(section_id, order_num);
+  `);
+
+  // ==========================================
+  // V2: マニュアル画像スロット（Excel出力用）
+  // ==========================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS manual_image_slots (
+      id TEXT PRIMARY KEY,
+      section_id TEXT NOT NULL,
+      caption TEXT NOT NULL,
+      image_path TEXT,
+      order_num INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (section_id) REFERENCES manual_sections(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_image_slots_section_id ON manual_image_slots(section_id);
+    CREATE INDEX IF NOT EXISTS idx_image_slots_order ON manual_image_slots(section_id, order_num);
+  `);
+
+  // ==========================================
+  // V2: データオブジェクト（プロジェクト全体で共有）
+  // ==========================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS data_objects (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      description TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_data_objects_project_id ON data_objects(project_id);
+    CREATE INDEX IF NOT EXISTS idx_data_objects_type ON data_objects(type);
+  `);
+
+  // ==========================================
+  // バージョン管理
+  // ==========================================
   db.exec(`
     CREATE TABLE IF NOT EXISTS versions (
       id TEXT PRIMARY KEY,
@@ -222,111 +380,17 @@ function createTables(): void {
     CREATE INDEX IF NOT EXISTS idx_versions_timestamp ON versions(timestamp);
   `);
 
-  // manual_tablesテーブル
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS manual_tables (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
-      description TEXT,
-      process_table_id TEXT,
-      display_order INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      metadata TEXT,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE SET NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_manual_tables_project_id ON manual_tables(project_id);
-    CREATE INDEX IF NOT EXISTS idx_manual_tables_process_table_id ON manual_tables(process_table_id);
-  `);
-
-  // manualsテーブル（将来拡張）
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS manuals (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      manual_table_id TEXT,
-      process_table_id TEXT,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      target_process_level TEXT DEFAULT 'detail',
-      version TEXT NOT NULL,
-      linked_flow_version TEXT,
-      status TEXT NOT NULL CHECK(status IN ('draft', 'review', 'approved', 'outdated')),
-      author TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      metadata TEXT,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (manual_table_id) REFERENCES manual_tables(id) ON DELETE CASCADE,
-      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE SET NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_manuals_project_id ON manuals(project_id);
-    CREATE INDEX IF NOT EXISTS idx_manuals_manual_table_id ON manuals(manual_table_id);
-    CREATE INDEX IF NOT EXISTS idx_manuals_process_table_id ON manuals(process_table_id);
-    CREATE INDEX IF NOT EXISTS idx_manuals_status ON manuals(status);
-  `);
-
-  // manual_sectionsテーブル（将来拡張）
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS manual_sections (
-      id TEXT PRIMARY KEY,
-      manual_id TEXT NOT NULL,
-      section_order INTEGER NOT NULL,
-      level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small')),
-      heading TEXT NOT NULL,
-      content TEXT NOT NULL,
-      process_id TEXT,
-      process_level TEXT,
-      bpmn_element_id TEXT,
-      parent_section_id TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      FOREIGN KEY (manual_id) REFERENCES manuals(id) ON DELETE CASCADE,
-      FOREIGN KEY (process_id) REFERENCES processes(id) ON DELETE SET NULL,
-      FOREIGN KEY (parent_section_id) REFERENCES manual_sections(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_manual_sections_manual_id ON manual_sections(manual_id);
-    CREATE INDEX IF NOT EXISTS idx_manual_sections_process_id ON manual_sections(process_id);
-  `);
-
-  // manual_process_relationsテーブル（将来拡張）
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS manual_process_relations (
-      id TEXT PRIMARY KEY,
-      manual_id TEXT NOT NULL,
-      process_id TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      FOREIGN KEY (manual_id) REFERENCES manuals(id) ON DELETE CASCADE,
-      FOREIGN KEY (process_id) REFERENCES processes(id) ON DELETE CASCADE,
-      UNIQUE(manual_id, process_id)
-    );
-  `);
-
-  // migrationsテーブル（マイグレーション管理用）
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      version TEXT NOT NULL UNIQUE,
-      applied_at INTEGER NOT NULL
-    );
-  `);
-
-  console.log('[Database] Tables created successfully');
+  console.log('[Database] V2 tables created successfully');
 }
 
 /**
  * マイグレーションを実行
+ * V2: 全テーブルを再構築
  */
 function runMigrations(): void {
   if (!db) throw new Error('Database not initialized');
 
-  console.log('[Database] Checking migrations...');
+  console.log('[Database] Running V2 migrations...');
 
   // 適用済みマイグレーションを取得
   const appliedMigrations = db
@@ -334,62 +398,126 @@ function runMigrations(): void {
     .all()
     .map((row: any) => row.version);
 
-  // マイグレーション定義
+  // ==========================================
+  // V2: マイグレーション定義
+  // 既存データは全破棄し、新しいスキーマで再構築
+  // ==========================================
   const migrations: Array<{ version: string; up: () => void }> = [
     {
-      version: '001_initial_schema',
+      version: 'v2_001_drop_old_tables',
       up: () => {
-        // 初期スキーマはcreateTablesで作成済みのため何もしない
-        console.log('[Migration] 001_initial_schema: Already applied via createTables()');
+        console.log('[Migration] v2_001_drop_old_tables: Dropping Phase 8 tables...');
+        
+        // Phase 8以前の全テーブルを削除（データ破棄）
+        db!.exec(`
+          DROP TABLE IF EXISTS manual_process_relations;
+          DROP TABLE IF EXISTS manual_sections;
+          DROP TABLE IF EXISTS manuals;
+          DROP TABLE IF EXISTS manual_tables;
+          DROP TABLE IF EXISTS bpmn_diagrams;
+          DROP TABLE IF EXISTS bpmn_diagram_tables;
+          DROP TABLE IF EXISTS processes;
+          DROP TABLE IF EXISTS process_tables;
+          DROP TABLE IF EXISTS versions;
+          DROP TABLE IF EXISTS projects;
+        `);
+        
+        console.log('[Migration] v2_001_drop_old_tables: Old tables dropped successfully');
+        console.log('[Migration] Note: V2 tables will be created by createTables()');
       }
     },
     {
-      version: '002_add_performance_indexes',
+      version: 'v2_002_initial_schema',
       up: () => {
-        console.log('[Migration] 002_add_performance_indexes: Adding performance indexes...');
-        db!.exec(`
-          -- プロセスの複合インデックス（プロジェクト+レベル）
-          CREATE INDEX IF NOT EXISTS idx_processes_project_level ON processes(project_id, level);
-          
-          -- プロセスの複合インデックス（プロジェクト+親+表示順）
-          CREATE INDEX IF NOT EXISTS idx_processes_parent_order ON processes(parent_id, display_order);
-          
-          -- プロセスの名前検索用インデックス
-          CREATE INDEX IF NOT EXISTS idx_processes_name ON processes(name);
-          
-          -- バージョンの複合インデックス（プロジェクト+タイムスタンプ降順）
-          CREATE INDEX IF NOT EXISTS idx_versions_project_timestamp_desc ON versions(project_id, timestamp DESC);
-          
-          -- バージョンのタグインデックス
-          CREATE INDEX IF NOT EXISTS idx_versions_tag ON versions(tag);
-          
-          -- プロジェクトの更新日時インデックス
-          CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
-        `);
+        // V2のテーブルはcreateTablesで作成済み
+        console.log('[Migration] v2_002_initial_schema: V2 schema created via createTables()');
       }
     },
     {
-      version: '003_phase6_manual_sync_fields',
+      version: 'v2_003_adjust_process_schema_for_bpmn',
       up: () => {
-        console.log('[Migration] 003_phase6_manual_sync_fields: Adding Phase 6 sync fields...');
+        console.log('[Migration] v2_003_adjust_process_schema_for_bpmn: Adjusting schema for BPMN 2.0...');
+        
         db!.exec(`
-          -- manualsテーブルに同期関連フィールドを追加
-          ALTER TABLE manuals ADD COLUMN auto_generated INTEGER DEFAULT 1;
-          ALTER TABLE manuals ADD COLUMN last_sync_at INTEGER;
+          -- ステップテーブルを削除（存在する場合）
+          DROP TABLE IF EXISTS process_table_steps;
           
-          -- manual_sectionsテーブルに同期関連フィールドを追加
-          ALTER TABLE manual_sections ADD COLUMN sync_status TEXT DEFAULT 'synced' CHECK(sync_status IN ('synced', 'outdated', 'conflict'));
-          ALTER TABLE manual_sections ADD COLUMN auto_generated INTEGER DEFAULT 1;
+          -- プールテーブルを削除（存在する場合）
+          DROP TABLE IF EXISTS process_table_pools;
           
-          -- 同期ステータスのインデックスを追加
-          CREATE INDEX IF NOT EXISTS idx_manuals_auto_generated ON manuals(auto_generated);
-          CREATE INDEX IF NOT EXISTS idx_manual_sections_sync_status ON manual_sections(sync_status);
+          -- processesテーブルをBPMN 2.0標準に調整
+          -- swimlane文字列 → lane_id参照
+          -- bpmn_elementを追加
+          CREATE TABLE processes_new (
+            id TEXT PRIMARY KEY,
+            process_table_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            lane_id TEXT NOT NULL,
+            bpmn_element TEXT NOT NULL DEFAULT 'task',
+            task_type TEXT,
+            before_process_ids TEXT,
+            next_process_ids TEXT,
+            documentation TEXT,
+            gateway_type TEXT,
+            conditional_flows TEXT,
+            event_type TEXT,
+            intermediate_event_type TEXT,
+            event_details TEXT,
+            input_data_objects TEXT,
+            output_data_objects TEXT,
+            message_flows TEXT,
+            artifacts TEXT,
+            custom_columns TEXT,
+            display_order INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE,
+            FOREIGN KEY (lane_id) REFERENCES process_table_swimlanes(id) ON DELETE CASCADE
+          );
           
-          -- manual_sectionsテーブルのprocess_idを必須に変更（既存データはNULLのまま）
-          -- SQLiteではALTER TABLEでNOT NULL制約を追加できないため、将来の挿入時に検証する
+          -- 既存データを移行
+          -- swimlane名からlane_idを取得
+          INSERT INTO processes_new (
+            id, process_table_id, name, lane_id, bpmn_element, task_type,
+            before_process_ids, next_process_ids, documentation,
+            gateway_type, conditional_flows, event_type,
+            intermediate_event_type, event_details,
+            input_data_objects, output_data_objects,
+            message_flows, artifacts, custom_columns,
+            display_order, created_at, updated_at
+          )
+          SELECT 
+            p.id, p.process_table_id, p.name,
+            COALESCE(
+              (SELECT s.id FROM process_table_swimlanes s 
+               WHERE s.process_table_id = p.process_table_id AND s.name = p.swimlane),
+              (SELECT s.id FROM process_table_swimlanes s 
+               WHERE s.process_table_id = p.process_table_id LIMIT 1)
+            ) as lane_id,
+            'task' as bpmn_element,
+            COALESCE(p.task_type, 'userTask') as task_type,
+            p.before_process_ids, p.next_process_ids, p.documentation,
+            p.gateway_type, p.conditional_flows, p.event_type,
+            p.intermediate_event_type, p.event_details,
+            p.input_data_objects, p.output_data_objects,
+            p.message_flows, p.artifacts, p.custom_columns,
+            p.display_order, p.created_at, p.updated_at
+          FROM processes p;
+          
+          -- 古いテーブルを削除し、新しいテーブルをリネーム
+          DROP TABLE processes;
+          ALTER TABLE processes_new RENAME TO processes;
+          
+          -- インデックスを再作成
+          CREATE INDEX IF NOT EXISTS idx_processes_table_id ON processes(process_table_id);
+          CREATE INDEX IF NOT EXISTS idx_processes_lane ON processes(lane_id);
+          CREATE INDEX IF NOT EXISTS idx_processes_bpmn_element ON processes(bpmn_element);
+          CREATE INDEX IF NOT EXISTS idx_processes_task_type ON processes(task_type);
         `);
+        
+        console.log('[Migration] v2_003_adjust_process_schema_for_bpmn: Migration completed successfully');
       }
-    },
+    }
   ];
 
   // 未適用のマイグレーションを実行
@@ -432,19 +560,26 @@ export function closeDatabase(): void {
 
 /**
  * データベースをリセット（開発用）
+ * V2: 新テーブル構造に対応
  */
 export function resetDatabase(): void {
   if (!db) throw new Error('Database not initialized');
 
-  console.log('[Database] Resetting database...');
+  console.log('[Database] Resetting database for V2...');
 
+  // V2のテーブルリスト
   const tables = [
-    'manual_process_relations',
+    'manual_image_slots',
+    'manual_detail_steps',
     'manual_sections',
     'manuals',
-    'versions',
+    'data_objects',
     'bpmn_diagrams',
     'processes',
+    'process_table_custom_columns',
+    'process_table_swimlanes',
+    'process_tables',
+    'versions',
     'projects',
     'migrations'
   ];
@@ -456,7 +591,7 @@ export function resetDatabase(): void {
     createTables();
   })();
 
-  console.log('[Database] Database reset completed');
+  console.log('[Database] Database reset completed for V2');
 }
 
 /**

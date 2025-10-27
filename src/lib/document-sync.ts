@@ -1,6 +1,12 @@
 /**
- * ドキュメント同期ユーティリティ
- * 工程表、BPMN、マニュアルを自動的に同期・生成します
+ * ドキュメント同期ユーティリティ（Phase 8 - 廃止予定）
+ * 
+ * ⚠️ Phase 9では使用されていません ⚠️
+ * Phase 9では工程表（ProcessTable）ベースのアーキテクチャに変更され、
+ * BPMNフロー図とマニュアルは工程表から自動生成されます。
+ * 
+ * このファイルはPhase 8の三位一体同期機能の実装で、現在は使用されていません。
+ * 将来的に削除される予定です。
  */
 
 import { Process, BpmnDiagram, ProcessLevel } from '@/types/project.types';
@@ -263,14 +269,15 @@ export async function checkSyncStatus(projectId: string): Promise<{
   hasManuals: boolean;
 }> {
   try {
-    const bpmns = await window.electronAPI.bpmn.getByProject(projectId);
-    const processes = await window.electronAPI.process.getByProject(projectId);
-    const manuals = await window.electronAPI.manual.getByProject(projectId);
+    // TODO: Phase 9では工程表ベースの構造に変更
+    // const bpmns = await window.electronAPI.bpmn.getByProject(projectId);
+    // const processes = await window.electronAPI.process.getByProject(projectId);
+    // const manuals = await window.electronAPI.manual.getByProject(projectId);
 
     return {
-      hasBpmn: bpmns.length > 0,
-      hasProcesses: processes.length > 0,
-      hasManuals: manuals.length > 0,
+      hasBpmn: false, // 一時的に無効化
+      hasProcesses: false,
+      hasManuals: false,
     };
   } catch (error) {
     console.error('Failed to check sync status:', error);
@@ -312,6 +319,8 @@ export async function autoSyncDocuments(
 
       // 工程表がなければ作成
       if (!status.hasProcesses) {
+        // TODO: Phase 9では工程表ベースに変更
+        /*
         const bpmns = await window.electronAPI.bpmn.getByProject(projectId);
         if (bpmns.length > 0) {
           const bpmn = bpmns[0];
@@ -320,16 +329,19 @@ export async function autoSyncDocuments(
           for (const template of processTemplates) {
             await window.electronAPI.process.create({
               projectId,
-              processTableId: options?.processTableId, // 工程表IDを指定
+              processTableId: options?.processTableId || '', // 工程表IDを指定
               ...template,
             });
           }
           result.processesCreated = true;
         }
+        */
       }
 
       // マニュアルがなければ作成
       if (!status.hasManuals) {
+        // TODO: Phase 9では工程表ベースに変更
+        /*
         const processes = await window.electronAPI.process.getByProject(projectId);
         // processTableIdでフィルタ（指定されている場合）
         const targetProcesses = options?.processTableId
@@ -348,12 +360,15 @@ export async function autoSyncDocuments(
           });
           result.manualCreated = true;
         }
+        */
       }
     } else if (trigger === 'process' && status.hasProcesses) {
       // 工程表が作成された場合
 
       // BPMNがなければ作成
       if (!status.hasBpmn) {
+        // TODO: Phase 9では工程表ベースに変更
+        /*
         const processes = await window.electronAPI.process.getByProject(projectId);
         // processTableIdでフィルタ（指定されている場合）
         const targetProcesses = options?.processTableId
@@ -371,10 +386,13 @@ export async function autoSyncDocuments(
           });
           result.bpmnCreated = true;
         }
+        */
       }
 
       // マニュアルがなければ作成
       if (!status.hasManuals) {
+        // TODO: Phase 9では工程表ベースに変更
+        /*
         const processes = await window.electronAPI.process.getByProject(projectId);
         // processTableIdでフィルタ（指定されている場合）
         const targetProcesses = options?.processTableId
@@ -393,6 +411,7 @@ export async function autoSyncDocuments(
           });
           result.manualCreated = true;
         }
+        */
       }
     }
 

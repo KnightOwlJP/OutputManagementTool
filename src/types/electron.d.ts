@@ -1,4 +1,17 @@
 // Electron API型定義
+import type { DetailTable } from './project.types';
+import type { 
+  ProcessTable, 
+  Swimlane, 
+  CustomColumn, 
+  Process, 
+  Step, 
+  DataObject,
+  Manual,
+  BpmnDiagram,
+  ProcessLevel 
+} from './models';
+
 export interface ElectronAPI {
   project: {
     create: (data: CreateProjectDto) => Promise<Project>;
@@ -10,48 +23,54 @@ export interface ElectronAPI {
   file: {
     openFileDialog: (options?: any) => Promise<string | null>;
     saveFileDialog: (options?: any) => Promise<string | null>;
+    selectDirectory: () => Promise<string | null>;
     importExcel: (projectId: string, filePath: string) => Promise<any>;
     exportExcel: (projectId: string, fileName: string) => Promise<string>;
   };
+  // V2: ProcessTable API
   processTable: {
-    create: (data: any) => Promise<any>;
-    getByProject: (projectId: string) => Promise<any[]>;
-    getById: (id: string) => Promise<any>;
-    update: (data: any) => Promise<any>;
-    delete: (id: string) => Promise<boolean>;
-    reorder: (data: any) => Promise<boolean>;
+    create: (data: any) => Promise<ProcessTable>;
+    getByProject: (projectId: string) => Promise<ProcessTable[]>;
+    getById: (processTableId: string) => Promise<ProcessTable | null>;
+    update: (processTableId: string, data: any) => Promise<ProcessTable>;
+    delete: (processTableId: string) => Promise<any>;
+    
+    // スイムレーン管理
+    createSwimlane: (processTableId: string, data: any) => Promise<Swimlane>;
+    getSwimlanes: (processTableId: string) => Promise<Swimlane[]>;
+    updateSwimlane: (swimlaneId: string, data: any) => Promise<Swimlane>;
+    deleteSwimlane: (swimlaneId: string) => Promise<void>;
+    reorderSwimlanes: (processTableId: string, swimlaneIds: string[]) => Promise<void>;
+    
+    // カスタム列管理
+    createCustomColumn: (processTableId: string, data: any) => Promise<CustomColumn>;
+    getCustomColumns: (processTableId: string) => Promise<CustomColumn[]>;
+    updateCustomColumn: (columnId: string, data: any) => Promise<CustomColumn>;
+    deleteCustomColumn: (columnId: string) => Promise<void>;
+    reorderCustomColumns: (processTableId: string, columnIds: string[]) => Promise<void>;
+    // Step management
+    createStep: (processTableId: string, data: { name: string; displayOrder: number }) => Promise<Step>;
+    updateStep: (stepId: string, data: { name?: string; displayOrder?: number }) => Promise<Step>;
+    deleteStep: (stepId: string) => Promise<void>;
+    reorderSteps: (processTableId: string, stepIds: string[]) => Promise<void>;
   };
-  bpmnDiagramTable: {
-    create: (data: any) => Promise<any>;
-    getByProject: (projectId: string) => Promise<any[]>;
-    getById: (id: string) => Promise<any>;
-    update: (data: any) => Promise<any>;
-    delete: (id: string) => Promise<boolean>;
-    reorder: (data: any) => Promise<boolean>;
-  };
-  manualTable: {
-    create: (data: any) => Promise<any>;
-    getByProject: (projectId: string) => Promise<any[]>;
-    getById: (id: string) => Promise<any>;
-    update: (data: any) => Promise<any>;
-    delete: (id: string) => Promise<boolean>;
-    reorder: (data: any) => Promise<boolean>;
+  // Phase 9: データオブジェクト管理（BPMN要素としての入出力データ）
+  dataObject: {
+    create: (processTableId: string, data: CreateDataObjectDto) => Promise<DataObject>;
+    getByProcessTable: (processTableId: string) => Promise<DataObject[]>;
+    getById: (dataObjectId: string) => Promise<DataObject | null>;
+    update: (dataObjectId: string, data: UpdateDataObjectDto) => Promise<DataObject>;
+    delete: (dataObjectId: string) => Promise<void>;
+    linkToProcess: (dataObjectId: string, processId: string, direction: 'input' | 'output') => Promise<void>;
+    unlinkFromProcess: (dataObjectId: string, processId: string, direction: 'input' | 'output') => Promise<void>;
   };
   process: {
     create: (data: CreateProcessDto) => Promise<Process>;
     getById: (processId: string) => Promise<Process>;
-    getByProject: (projectId: string) => Promise<Process[]>;
+    getByProcessTable: (processTableId: string) => Promise<Process[]>;
     update: (processId: string, data: UpdateProcessDto) => Promise<Process>;
     delete: (processId: string) => Promise<boolean>;
-    move: (processId: string, newParentId: string | null) => Promise<Process>;
-    reorder: (processId: string, newDisplayOrder: number) => Promise<boolean>;
-  };
-  bpmn: {
-    create: (data: CreateBpmnDto) => Promise<BpmnDiagram>;
-    getById: (bpmnId: string) => Promise<BpmnDiagram>;
-    getByProject: (projectId: string) => Promise<BpmnDiagram[]>;
-    update: (bpmnId: string, data: { xmlContent?: string; name?: string }) => Promise<BpmnDiagram>;
-    delete: (bpmnId: string) => Promise<boolean>;
+    reorder: (processId: string, newDisplayOrder: number) => Promise<void>;
   };
   version: {
     create: (data: CreateVersionDto) => Promise<Version>;
@@ -60,28 +79,80 @@ export interface ElectronAPI {
     restore: (versionId: string) => Promise<boolean>;
     delete: (versionId: string) => Promise<boolean>;
   };
-  sync: {
-    bpmnToProcesses: (projectId: string, bpmnId: string) => Promise<{ created: number; updated: number; deleted: number }>;
-    processesToBpmn: (projectId: string, bpmnId: string) => Promise<boolean>;
-    bidirectional: (projectId: string, bpmnId: string) => Promise<{ bpmnToProcesses: any; processesToBpmn: boolean }>;
-    getProcessByBpmnElementId: (projectId: string, elementId: string) => Promise<Process | null>;
-    resolveConflict: (projectId: string, elementId: string, resolution: 'bpmn' | 'process') => Promise<boolean>;
-    startWatch: (projectId: string) => Promise<boolean>;
-    stopWatch: (projectId: string) => Promise<boolean>;
+  backup: {
+    create: (customPath?: string, isAutomatic?: boolean) => Promise<{
+      success: boolean;
+      backupPath?: string;
+      error?: string;
+    }>;
+    list: (customPath?: string) => Promise<{
+      success: boolean;
+      backups?: Array<{
+        id: string;
+        filename: string;
+        filePath: string;
+        size: number;
+        createdAt: Date;
+        isAutomatic: boolean;
+      }>;
+      error?: string;
+    }>;
+    restore: (backupPath: string) => Promise<{
+      success: boolean;
+      backupPath?: string;
+      error?: string;
+    }>;
+    delete: (backupPath: string) => Promise<{
+      success: boolean;
+      error?: string;
+    }>;
+    cleanup: (maxBackups: number, customPath?: string) => Promise<{
+      success: boolean;
+      error?: string;
+    }>;
+    selectDirectory: () => Promise<string | null>;
+    // スケジューラー
+    startScheduler: (intervalHours: number, maxBackups: number, customPath?: string) => Promise<{
+      success: boolean;
+      error?: string;
+    }>;
+    stopScheduler: () => Promise<{
+      success: boolean;
+      error?: string;
+    }>;
+    getSchedulerStatus: () => Promise<{
+      success: boolean;
+      status?: {
+        enabled: boolean;
+        intervalHours: number;
+        maxBackups: number;
+        customPath: string;
+      };
+      error?: string;
+    }>;
   };
-  manual: {
-    create: (data: CreateManualDto) => Promise<Manual>;
+  // Phase 9: BPMNフロー図管理（工程表から自動生成、読み取り専用）
+  bpmnDiagramTable: {
+    getByProject: (projectId: string) => Promise<BpmnDiagram[]>;
+    getById: (bpmnId: string) => Promise<BpmnDiagram>;
+    getByProcessTable: (processTableId: string) => Promise<BpmnDiagram | null>;
+    update: (bpmnId: string, data: { name?: string; xmlContent?: string }) => Promise<BpmnDiagram>;
+    delete: (bpmnId: string) => Promise<void>;
+  };
+  // Phase 9: マニュアル管理（工程表から自動生成、読み取り専用）
+  manualTable: {
     getByProject: (projectId: string) => Promise<Manual[]>;
     getById: (manualId: string) => Promise<Manual>;
-    update: (manualId: string, data: UpdateManualDto) => Promise<Manual>;
-    delete: (manualId: string) => Promise<boolean>;
-    generateFromProcesses: (data: GenerateManualDto) => Promise<Manual>;
-    export: (manualId: string, format: 'markdown' | 'html' | 'pdf') => Promise<string>;
+    getByProcessTable: (processTableId: string) => Promise<Manual | null>;
+    update: (manualId: string, data: { name?: string; content?: string }) => Promise<Manual>;
+    delete: (manualId: string) => Promise<void>;
   };
   system: {
     platform: string;
     version: string;
   };
+  // デバッグ用API
+  invoke: (channel: string, ...args: any[]) => Promise<any>;
 }
 
 // Window型拡張
@@ -96,6 +167,7 @@ declare global {
 export interface CreateProjectDto {
   name: string;
   description?: string;
+  storagePath?: string;
 }
 
 export interface UpdateProjectDto {
@@ -104,36 +176,44 @@ export interface UpdateProjectDto {
 }
 
 export interface CreateProcessDto {
-  projectId: string;
-  processTableId?: string;
+  processTableId: string;
   name: string;
-  level: ProcessLevel;
-  parentId?: string;
-  department?: string;
-  assignee?: string;
-  documentType?: string;
-  startDate?: Date;
-  endDate?: Date;
-  description?: string;
+  laneId: string;
+  bpmnElement?: 'task' | 'event' | 'gateway';
+  taskType?: 'userTask' | 'serviceTask' | 'manualTask' | 'scriptTask' | 'businessRuleTask' | 'sendTask' | 'receiveTask';
+  beforeProcessIds?: string[];
+  documentation?: string;
+  gatewayType?: 'exclusive' | 'parallel' | 'inclusive';
+  conditionalFlows?: Array<{ condition: string; targetProcessId: string; description?: string }>;
+  eventType?: 'start' | 'end' | 'intermediate';
+  intermediateEventType?: 'timer' | 'message' | 'error' | 'signal' | 'conditional';
+  eventDetails?: string;
+  inputDataObjects?: string[];
+  outputDataObjects?: string[];
+  messageFlows?: Array<{ targetProcessId: string; messageContent: string; description?: string }>;
+  artifacts?: Array<{ type: string; content: string }>;
+  customColumns?: Record<string, any>;
+  displayOrder?: number;
 }
 
 export interface UpdateProcessDto {
   name?: string;
-  department?: string;
-  assignee?: string;
-  documentType?: string;
-  startDate?: Date;
-  endDate?: Date;
-  status?: string;
-  description?: string;
-}
-
-export interface CreateBpmnDto {
-  projectId: string;
-  bpmnDiagramTableId?: string;
-  name: string;
-  xmlContent?: string;
-  processId?: string;
+  laneId?: string;
+  bpmnElement?: 'task' | 'event' | 'gateway';
+  taskType?: 'userTask' | 'serviceTask' | 'manualTask' | 'scriptTask' | 'businessRuleTask' | 'sendTask' | 'receiveTask';
+  beforeProcessIds?: string[];
+  documentation?: string;
+  gatewayType?: 'exclusive' | 'parallel' | 'inclusive';
+  conditionalFlows?: Array<{ condition: string; targetProcessId: string; description?: string }>;
+  eventType?: 'start' | 'end' | 'intermediate';
+  intermediateEventType?: 'timer' | 'message' | 'error' | 'signal' | 'conditional';
+  eventDetails?: string;
+  inputDataObjects?: string[];
+  outputDataObjects?: string[];
+  messageFlows?: Array<{ targetProcessId: string; messageContent: string; description?: string }>;
+  artifacts?: Array<{ type: string; content: string }>;
+  customColumns?: Record<string, any>;
+  displayOrder?: number;
 }
 
 export interface CreateVersionDto {
@@ -155,55 +235,40 @@ export interface VersionDiff {
   bpmnChanges?: any;
 }
 
-export interface CreateManualDto {
-  projectId: string;
-  title: string;
+// カスタム列関連のDTO (Phase 9: processTable APIに統合)
+export interface CreateCustomColumnDto {
+  processTableId: string;
+  name: string;
+  type: CustomColumnType;
+  options?: string[];
+  required?: boolean;
+}
+
+export interface UpdateCustomColumnDto {
+  name?: string;
+  type?: CustomColumnType;
+  options?: string[];
+  required?: boolean;
+  order?: number;
+}
+
+// データオブジェクト関連のDTO (Phase 9)
+export interface CreateDataObjectDto {
+  name: string;
+  type: 'input' | 'output' | 'both';
   description?: string;
 }
 
-export interface UpdateManualDto {
-  title?: string;
+export interface UpdateDataObjectDto {
+  name?: string;
+  type?: 'input' | 'output' | 'both';
   description?: string;
 }
 
-export interface GenerateManualOptions {
-  manualTableId?: string;
-  title?: string;
-  includeDetailProcesses?: boolean;
-}
-
-export interface GenerateManualDto {
-  projectId: string;
-  manualTableId?: string;
-  title: string;
-  options?: GenerateManualOptions;
-}
-
-export interface Manual {
-  id: string;
-  projectId: string;
-  title: string;
-  description?: string;
-  autoGenerated: boolean;
-  lastSyncAt?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ManualSection {
-  id: string;
-  manualId: string;
-  title: string;
-  content: string;
-  level: number;
-  parentId?: string;
-  displayOrder: number;
-  processId?: string;
-  syncStatus?: 'synced' | 'modified' | 'conflict';
-  autoGenerated: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// 他の型定義のインポート
-export type { Project, Process, ProcessLevel, BpmnDiagram, Version } from './project.types';
+// 他の型定義のインポート（models.tsから取得）
+export type { 
+  Project, 
+  ProcessLevel, 
+  Version,
+  CustomColumnType
+} from './project.types';

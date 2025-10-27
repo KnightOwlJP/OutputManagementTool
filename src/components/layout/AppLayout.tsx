@@ -25,6 +25,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [settings.ui.theme]);
 
+  // コンパクトモードに応じたパディングクラスを設定
+  const paddingClass = settings.ui.compactMode ? 'p-3' : 'p-6';
+
   return (
     <div className={`flex h-screen overflow-hidden ${effectiveTheme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* サイドバー */}
@@ -36,7 +39,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Header />
 
         {/* コンテンツ */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className={`flex-1 overflow-y-auto ${paddingClass}`}>
           {children}
         </main>
       </div>

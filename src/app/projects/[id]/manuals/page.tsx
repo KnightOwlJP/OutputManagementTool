@@ -24,7 +24,7 @@ import {
 import { AppLayout } from '@/components';
 import { ManualTableList } from '@/components/manual/ManualTableList';
 import { useToast } from '@/contexts/ToastContext';
-import { ManualTable, ProcessTable, ProcessLevel } from '@/types/project.types';
+import { Manual, ProcessTable, ProcessLevel } from '@/types/models';
 
 export default function ManualsPage() {
   const params = useParams();
@@ -34,10 +34,10 @@ export default function ManualsPage() {
   
   // URLから実際のプロジェクトIDを取得（静的エクスポート対応）
   const [projectId, setProjectId] = useState<string>('');
-  const [manualTables, setManualTables] = useState<ManualTable[]>([]);
+  const [manualTables, setManualTables] = useState<Manual[]>([]);
   const [processTables, setProcessTables] = useState<ProcessTable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedTable, setSelectedTable] = useState<ManualTable | null>(null);
+  const [selectedTable, setSelectedTable] = useState<Manual | null>(null);
   
   // フォーム状態
   const [formData, setFormData] = useState({
@@ -112,11 +112,11 @@ export default function ManualsPage() {
   /**
    * テーブル編集ハンドラ
    */
-  const handleEditTable = (table: ManualTable) => {
+  const handleEditTable = (table: Manual) => {
     setSelectedTable(table);
     setFormData({
       name: table.name,
-      description: table.description || '',
+      description: '', // Manual型にdescriptionフィールドがない
       level: table.level,
       processTableId: table.processTableId || '',
     });
@@ -163,23 +163,14 @@ export default function ManualsPage() {
     try {
       if (selectedTable) {
         // 更新
-        await window.electronAPI.manualTable.update({
-          id: selectedTable.id,
+        await window.electronAPI.manualTable.update(selectedTable.id, {
           name: formData.name.trim(),
-          description: formData.description.trim() || undefined,
-          processTableId: formData.processTableId || undefined,
         });
         showToast('success', 'マニュアルグループを更新しました');
       } else {
-        // 新規作成
-        await window.electronAPI.manualTable.create({
-          projectId,
-          name: formData.name.trim(),
-          description: formData.description.trim() || undefined,
-          level: formData.level,
-          processTableId: formData.processTableId || undefined,
-        });
-        showToast('success', 'マニュアルグループを作成しました');
+        // Phase 9: マニュアルは工程表から自動生成されるため、手動作成は不可
+        showToast('warning', 'マニュアルは工程表作成時に自動生成されます');
+        return;
       }
       
       onClose();
@@ -195,12 +186,10 @@ export default function ManualsPage() {
    */
   const handleReorder = async (tableId: string, newOrder: number) => {
     try {
-      await window.electronAPI.manualTable.reorder({
-        id: tableId,
-        displayOrder: newOrder,
-      });
+      // Phase 9では並び順管理は未実装
+      // TODO: Manual型にdisplayOrderを追加してから実装
+      showToast('warning', '並び順変更は現在サポートされていません');
       await loadData();
-      showToast('success', '表示順を更新しました');
     } catch (error) {
       console.error('Failed to reorder manual table:', error);
       showToast('error', `並び順の変更に失敗しました: ${error instanceof Error ? error.message : String(error)}`);

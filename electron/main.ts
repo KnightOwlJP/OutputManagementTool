@@ -5,13 +5,19 @@ import { initDatabase, closeDatabase } from './utils/database';
 import { getLogger, setupGlobalErrorHandler } from './utils/logger';
 import { registerProjectHandlers } from './ipc/project.handlers';
 import { registerProcessHandlers } from './ipc/process.handlers';
-import { registerProcessTableHandlers } from './ipc/processTable.handlers';
-import { registerBpmnDiagramTableHandlers } from './ipc/bpmnDiagramTable.handlers';
-import { registerManualTableHandlers } from './ipc/manualTable.handlers';
 import { registerBpmnHandlers } from './ipc/bpmn.handlers';
 import { registerVersionHandlers } from './ipc/version.handlers';
 import { registerSyncHandlers } from './ipc/sync.handlers';
 import { registerManualHandlers } from './ipc/manual.handlers';
+import { registerCustomColumnHandlers } from './ipc/customColumn.handlers';
+import { registerProcessCustomValueHandlers } from './ipc/processCustomValue.handlers';
+import { registerBpmnElementHandlers } from './ipc/bpmnElement.handlers';
+import { registerBackupHandlers } from './ipc/backup.handlers';
+import { registerBackupSchedulerHandlers } from './ipc/backup.scheduler';
+import { registerSyncSchedulerHandlers } from './ipc/sync.scheduler';
+// V2: 新規ハンドラー
+import { registerProcessTableHandlers } from './ipc/processTable.handlers';
+import { registerDataObjectHandlers } from './ipc/dataObject.handlers';
 
 // ロガー初期化
 const logger = getLogger();
@@ -68,16 +74,21 @@ async function createWindow() {
           targetPath = '/projects/placeholder/';
           logger.info('App', `Dynamic route detected, loading placeholder: ${targetPath}`);
         }
-        // /projects/[id]/[page] パターンの場合
-        else if (urlPath.match(/^\/projects\/[^\/]+\/([^\/]+)\/?$/)) {
-          const page = urlPath.match(/^\/projects\/[^\/]+\/([^\/]+)\/?$/)?.[1];
-          targetPath = `/projects/placeholder/${page}/`;
-          logger.info('App', `Dynamic route detected, loading placeholder: ${targetPath}`);
+        // /projects/[id]/process-tables/[tableId] パターンの場合
+        else if (urlPath.match(/^\/projects\/[^\/]+\/process-tables\/[^\/]+\/?$/)) {
+          targetPath = '/projects/placeholder/process-tables/placeholder/';
+          logger.info('App', `Dynamic route detected (process-tables), loading placeholder: ${targetPath}`);
         }
         // /projects/[id]/manuals/[manualId] パターンの場合
         else if (urlPath.match(/^\/projects\/[^\/]+\/manuals\/[^\/]+\/?$/)) {
           targetPath = '/projects/placeholder/manuals/placeholder/';
-          logger.info('App', `Dynamic route detected, loading placeholder: ${targetPath}`);
+          logger.info('App', `Dynamic route detected (manuals), loading placeholder: ${targetPath}`);
+        }
+        // /projects/[id]/[page] パターンの場合（より一般的なマッチなので最後に）
+        else if (urlPath.match(/^\/projects\/[^\/]+\/([^\/]+)\/?$/)) {
+          const page = urlPath.match(/^\/projects\/[^\/]+\/([^\/]+)\/?$/)?.[1];
+          targetPath = `/projects/placeholder/${page}/`;
+          logger.info('App', `Dynamic route detected (general page), loading placeholder: ${targetPath}`);
         }
         
         // 実際のURLは変えずに、対応するHTMLファイルをロード
@@ -165,14 +176,21 @@ app.whenReady().then(async () => {
   // IPCハンドラーを登録
   try {
     registerProjectHandlers();
+    // V2: 工程表管理（新規）
     registerProcessTableHandlers();
-    registerBpmnDiagramTableHandlers();
-    registerManualTableHandlers();
     registerProcessHandlers();
+    // V2: データオブジェクト管理（新規）
+    registerDataObjectHandlers();
     registerBpmnHandlers();
     registerVersionHandlers();
-    registerSyncHandlers(); // Phase 6.1.2: BPMN⇔工程同期
+    // registerSyncHandlers(); // Phase 8: BPMN⇔工程同期（Phase 9では非推奨）
     registerManualHandlers(); // Phase 6.2.3: マニュアル機能
+    registerCustomColumnHandlers(); // Phase 7.1: カスタム列機能（V2で工程表に統合）
+    registerProcessCustomValueHandlers(); // Phase 7.2: カスタム列値管理（V2で工程に統合）
+    registerBpmnElementHandlers(); // Phase 7.3: BPMN要素管理（V2で非推奨）
+    registerBackupHandlers(); // バックアップ機能
+    registerBackupSchedulerHandlers(); // 自動バックアップスケジューラー
+    // registerSyncSchedulerHandlers(); // 自動同期スケジューラー（Phase 9では非推奨）
     logger.info('App', 'IPC handlers registered successfully');
   } catch (error) {
     logger.error('App', 'Failed to register IPC handlers', error as Error);

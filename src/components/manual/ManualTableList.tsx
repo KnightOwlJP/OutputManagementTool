@@ -8,16 +8,16 @@ import {
   TrashIcon,
   PencilIcon,
 } from '@heroicons/react/24/outline';
-import { ManualTable, ProcessLevel } from '@/types/project.types';
+import { Manual, ProcessLevel } from '@/types/models';
 import { useToast } from '@/contexts/ToastContext';
 
 interface ManualTableListProps {
   projectId: string;
-  manualTables: ManualTable[];
+  manualTables: Manual[];
   onCreateTable: (level: ProcessLevel) => void;
   onSelectTable: (tableId: string) => void;
   onDeleteTable: (tableId: string) => void;
-  onEditTable: (table: ManualTable) => void;
+  onEditTable: (table: Manual) => void;
 }
 
 const levelNames: Record<ProcessLevel, string> = {
@@ -45,7 +45,7 @@ export function ManualTableList({
   const { showToast } = useToast();
   const [selectedLevel, setSelectedLevel] = useState<ProcessLevel>('detail');
 
-  const handleDelete = async (table: ManualTable) => {
+  const handleDelete = async (table: Manual) => {
     if (!confirm(`「${table.name}」を削除しますか？関連するマニュアルもすべて削除されます。`)) {
       return;
     }
@@ -59,7 +59,7 @@ export function ManualTableList({
     }
     acc[table.level].push(table);
     return acc;
-  }, {} as Record<ProcessLevel, ManualTable[]>);
+  }, {} as Record<ProcessLevel, Manual[]>);
 
   return (
     <div className="space-y-6">
@@ -141,11 +141,6 @@ export function ManualTableList({
                           <h3 className="font-semibold text-gray-900 dark:text-white">
                             {table.name}
                           </h3>
-                          {table.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              {table.description}
-                            </p>
-                          )}
                         </div>
                         <div className="flex gap-1">
                           <Button
@@ -174,7 +169,6 @@ export function ManualTableList({
                             📋 工程表と連携
                           </span>
                         )}
-                        <span>順序: {table.displayOrder}</span>
                         <span>
                           {new Date(table.createdAt).toLocaleDateString('ja-JP')}
                         </span>

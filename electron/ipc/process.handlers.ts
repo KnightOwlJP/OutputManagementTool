@@ -5,307 +5,270 @@ import { v4 as uuidv4 } from 'uuid';
 
 const logger = getLogger();
 
-// Process型定義（インライン）
-type ProcessLevel = 'large' | 'medium' | 'small' | 'detail';
+// V2: Process型定義（フラット構造、BPMN 2.0完全統合）
+type BpmnElementType = 'task' | 'event' | 'gateway';
+type BpmnTaskType = 'userTask' | 'serviceTask' | 'manualTask' | 'scriptTask' | 'businessRuleTask' | 'sendTask' | 'receiveTask';
+type GatewayType = 'exclusive' | 'parallel' | 'inclusive';
+type EventType = 'start' | 'end' | 'intermediate';
+type IntermediateEventType = 'timer' | 'message' | 'error' | 'signal' | 'conditional';
 
 interface Process {
   id: string;
-  projectId: string;
-  processTableId?: string;
+  processTableId: string;
   name: string;
-  level: ProcessLevel;
-  parentId?: string;
-  department?: string;
-  assignee?: string;
-  documentType?: string;
-  startDate?: Date;
-  endDate?: Date;
-  status?: string;
-  description?: string;
-  bpmnElementId?: string;
-  hasManual?: boolean;
-  manualId?: string;
+  laneId: string;
+  bpmnElement: BpmnElementType;
+  taskType: BpmnTaskType;
+  beforeProcessIds?: string[];
+  nextProcessIds?: string[];
+  documentation?: string;
+  gatewayType?: GatewayType;
+  conditionalFlows?: Array<{ condition: string; targetProcessId: string }>;
+  eventType?: EventType;
+  intermediateEventType?: IntermediateEventType;
+  eventDetails?: string;
+  inputDataObjects?: string[];
+  outputDataObjects?: string[];
+  messageFlows?: Array<{ source: string; target: string; message?: string }>;
+  artifacts?: Array<{ type: string; content: string }>;
+  customColumns?: Record<string, any>;
   displayOrder: number;
   createdAt: Date;
   updatedAt: Date;
-  metadata?: Record<string, any>;
 }
 
 interface CreateProcessDto {
-  projectId: string;
-  processTableId?: string;
+  processTableId: string;
   name: string;
-  level: ProcessLevel;
-  parentId?: string;
-  department?: string;
-  assignee?: string;
-  documentType?: string;
-  startDate?: Date;
-  endDate?: Date;
-  description?: string;
+  laneId: string;
+  bpmnElement?: BpmnElementType;
+  taskType?: BpmnTaskType;
+  beforeProcessIds?: string[];
+  documentation?: string;
+  gatewayType?: GatewayType;
+  conditionalFlows?: Array<{ condition: string; targetProcessId: string }>;
+  eventType?: EventType;
+  intermediateEventType?: IntermediateEventType;
+  eventDetails?: string;
+  inputDataObjects?: string[];
+  outputDataObjects?: string[];
+  messageFlows?: Array<{ source: string; target: string; message?: string }>;
+  artifacts?: Array<{ type: string; content: string }>;
+  customColumns?: Record<string, any>;
   displayOrder?: number;
 }
 
 interface UpdateProcessDto {
   name?: string;
-  department?: string;
-  assignee?: string;
-  documentType?: string;
-  startDate?: Date;
-  endDate?: Date;
-  status?: string;
-  description?: string;
-  bpmnElementId?: string;
+  laneId?: string;
+  bpmnElement?: BpmnElementType;
+  taskType?: BpmnTaskType;
+  beforeProcessIds?: string[];
+  documentation?: string;
+  gatewayType?: GatewayType;
+  conditionalFlows?: Array<{ condition: string; targetProcessId: string }>;
+  eventType?: EventType;
+  intermediateEventType?: IntermediateEventType;
+  eventDetails?: string;
+  inputDataObjects?: string[];
+  outputDataObjects?: string[];
+  messageFlows?: Array<{ source: string; target: string; message?: string }>;
+  artifacts?: Array<{ type: string; content: string }>;
+  customColumns?: Record<string, any>;
   displayOrder?: number;
 }
 
+interface CreateProcessResult {
+  process: Process;
+  nextProcessIdsUpdated: boolean;
+}
+
+interface UpdateProcessResult {
+  process: Process;
+  nextProcessIdsUpdated: boolean;
+}
+
+interface DeleteProcessResult {
+  success: boolean;
+  nextProcessIdsUpdated: boolean;
+}
+
 /**
- * 工程関連のIPCハンドラーを登録
+ * DB行をProcessオブジェクトに変換
+ */
+function rowToProcess(row: any): Process {
+  return {
+    id: row.id,
+    processTableId: row.process_table_id,
+    name: row.name,
+    laneId: row.lane_id,
+    bpmnElement: row.bpmn_element as BpmnElementType,
+    taskType: row.task_type as BpmnTaskType,
+    beforeProcessIds: row.before_process_ids ? JSON.parse(row.before_process_ids) : undefined,
+    nextProcessIds: row.next_process_ids ? JSON.parse(row.next_process_ids) : undefined,
+    documentation: row.documentation || undefined,
+    gatewayType: row.gateway_type as GatewayType | undefined,
+    conditionalFlows: row.conditional_flows ? JSON.parse(row.conditional_flows) : undefined,
+    eventType: row.event_type as EventType | undefined,
+    intermediateEventType: row.intermediate_event_type as IntermediateEventType | undefined,
+    eventDetails: row.event_details || undefined,
+    inputDataObjects: row.input_data_objects ? JSON.parse(row.input_data_objects) : undefined,
+    outputDataObjects: row.output_data_objects ? JSON.parse(row.output_data_objects) : undefined,
+    messageFlows: row.message_flows ? JSON.parse(row.message_flows) : undefined,
+    artifacts: row.artifacts ? JSON.parse(row.artifacts) : undefined,
+    customColumns: row.custom_columns ? JSON.parse(row.custom_columns) : undefined,
+    displayOrder: row.display_order,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+/**
+ * nextProcessIdsを自動計算
+ * beforeProcessIdsを見て逆方向の参照を構築
+ */
+function calculateNextProcessIds(db: any, processTableId: string): void {
+  // 1. 全工程のnextProcessIdsをクリア
+  db.prepare('UPDATE processes SET next_process_ids = NULL WHERE process_table_id = ?').run(processTableId);
+
+  // 2. 全工程を取得
+  const processes = db.prepare('SELECT id, before_process_ids FROM processes WHERE process_table_id = ?').all(processTableId) as Array<{
+    id: string;
+    before_process_ids: string | null;
+  }>;
+
+  // 3. nextProcessIdsを計算
+  const nextProcessIdsMap = new Map<string, Set<string>>();
+
+  processes.forEach(process => {
+    if (process.before_process_ids) {
+      const beforeIds: string[] = JSON.parse(process.before_process_ids);
+      beforeIds.forEach(beforeId => {
+        if (!nextProcessIdsMap.has(beforeId)) {
+          nextProcessIdsMap.set(beforeId, new Set());
+        }
+        nextProcessIdsMap.get(beforeId)!.add(process.id);
+      });
+    }
+  });
+
+  // 4. 更新
+  nextProcessIdsMap.forEach((nextIds, processId) => {
+    const nextIdsArray = Array.from(nextIds);
+    db.prepare('UPDATE processes SET next_process_ids = ? WHERE id = ?').run(JSON.stringify(nextIdsArray), processId);
+  });
+
+  logger.info('Process', `nextProcessIds calculated for processTable: ${processTableId}`);
+}
+
+/**
+ * 工程関連のIPCハンドラーを登録（V2版）
  */
 export function registerProcessHandlers(): void {
   // 工程作成
-  ipcMain.handle('process:create', async (_, data: CreateProcessDto): Promise<Process> => {
+  ipcMain.handle('process:create', async (_, data: CreateProcessDto): Promise<CreateProcessResult> => {
     try {
       const db = getDatabase();
       const now = Date.now();
       const processId = uuidv4();
 
-      // 親IDが指定されている場合、親工程の存在を確認
-      if (data.parentId) {
-        const parent = db.prepare('SELECT id, level FROM processes WHERE id = ?').get(data.parentId) as { id: string; level: string } | undefined;
-        if (!parent) {
-          throw new Error('親工程が見つかりません');
-        }
-
-        // 階層の妥当性をチェック
-        const levelOrder = { large: 0, medium: 1, small: 2, detail: 3 };
-        const parentLevel = levelOrder[parent.level as ProcessLevel];
-        const currentLevel = levelOrder[data.level];
-        
-        if (currentLevel <= parentLevel) {
-          throw new Error('工程レベルの階層が不正です');
-        }
-      }
-
-      // displayOrderが指定されていない場合、同じparentIdの最大値+1を取得
+      // displayOrderが指定されていない場合、同じ工程表内の最大値+1を取得
       let displayOrder = data.displayOrder ?? 0;
       if (data.displayOrder === undefined) {
-        const maxOrder = db.prepare(`
-          SELECT MAX(display_order) as max_order
-          FROM processes
-          WHERE project_id = ? AND ${data.parentId ? 'parent_id = ?' : 'parent_id IS NULL'}
-        `).get(data.parentId ? [data.projectId, data.parentId] : [data.projectId]) as { max_order: number | null };
-        
-        displayOrder = (maxOrder.max_order ?? -1) + 1;
+        const maxOrder = db.prepare('SELECT COALESCE(MAX(display_order), -1) + 1 as next_order FROM processes WHERE process_table_id = ?')
+          .get(data.processTableId) as { next_order: number };
+        displayOrder = maxOrder.next_order;
       }
 
-      // データベースに保存
-      const stmt = db.prepare(`
+      // 工程作成
+      db.prepare(`
         INSERT INTO processes (
-          id, project_id, process_table_id, name, level, parent_id, department, assignee, 
-          document_type, start_date, end_date, description, display_order, 
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      stmt.run(
+          id, process_table_id, name, lane_id, bpmn_element, task_type,
+          before_process_ids, documentation,
+          gateway_type, conditional_flows,
+          event_type, intermediate_event_type, event_details,
+          input_data_objects, output_data_objects,
+          message_flows, artifacts,
+          custom_columns, display_order, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
         processId,
-        data.projectId,
-        data.processTableId || null,
+        data.processTableId,
         data.name,
-        data.level,
-        data.parentId || null,
-        data.department || null,
-        data.assignee || null,
-        data.documentType || null,
-        data.startDate ? data.startDate.getTime() : null,
-        data.endDate ? data.endDate.getTime() : null,
-        data.description || null,
+        data.laneId,
+        data.bpmnElement || 'task',
+        data.taskType || 'userTask',
+        data.beforeProcessIds ? JSON.stringify(data.beforeProcessIds) : null,
+        data.documentation || null,
+        data.gatewayType || null,
+        data.conditionalFlows ? JSON.stringify(data.conditionalFlows) : null,
+        data.eventType || null,
+        data.intermediateEventType || null,
+        data.eventDetails || null,
+        data.inputDataObjects ? JSON.stringify(data.inputDataObjects) : null,
+        data.outputDataObjects ? JSON.stringify(data.outputDataObjects) : null,
+        data.messageFlows ? JSON.stringify(data.messageFlows) : null,
+        data.artifacts ? JSON.stringify(data.artifacts) : null,
+        data.customColumns ? JSON.stringify(data.customColumns) : null,
         displayOrder,
         now,
         now
       );
 
-      const process: Process = {
-        id: processId,
-        projectId: data.projectId,
-        processTableId: data.processTableId,
-        name: data.name,
-        level: data.level,
-        parentId: data.parentId,
-        department: data.department,
-        assignee: data.assignee,
-        documentType: data.documentType,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        description: data.description,
-        displayOrder,
-        createdAt: new Date(now),
-        updatedAt: new Date(now),
-      };
+      // nextProcessIdsを自動計算
+      calculateNextProcessIds(db, data.processTableId);
 
-      console.log('[IPC] Process created:', processId);
-      return process;
+      const created = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
+
+      logger.info('Process', `Process created: ${processId}`);
+      return {
+        process: rowToProcess(created),
+        nextProcessIdsUpdated: true,
+      };
     } catch (error) {
-      console.error('[IPC] Error creating process:', error);
+      logger.error('Process', 'Error creating process', error as Error);
       throw error;
     }
   });
 
-  // プロジェクト内の全工程を取得
-  ipcMain.handle('process:getByProject', async (_, projectId: string): Promise<Process[]> => {
+  // 工程表内の全工程取得
+  ipcMain.handle('process:getByProcessTable', async (_, processTableId: string): Promise<Process[]> => {
     try {
       const db = getDatabase();
-      const stmt = db.prepare(`
-        SELECT 
-          id, project_id, process_table_id, name, level, parent_id, department, assignee,
-          document_type, start_date, end_date, status, description,
-          bpmn_element_id, has_manual, manual_id, display_order,
-          created_at, updated_at, metadata
-        FROM processes
-        WHERE project_id = ?
-        ORDER BY display_order ASC, created_at ASC
-      `);
+      const rows = db.prepare(`
+        SELECT * FROM processes
+        WHERE process_table_id = ?
+        ORDER BY display_order ASC
+      `).all(processTableId);
 
-      const rows = stmt.all(projectId) as Array<{
-        id: string;
-        project_id: string;
-        process_table_id: string;
-        name: string;
-        level: ProcessLevel;
-        parent_id: string | null;
-        department: string | null;
-        assignee: string | null;
-        document_type: string | null;
-        start_date: number | null;
-        end_date: number | null;
-        status: string | null;
-        description: string | null;
-        bpmn_element_id: string | null;
-        has_manual: number | null;
-        manual_id: string | null;
-        display_order: number;
-        created_at: number;
-        updated_at: number;
-        metadata: string | null;
-      }>;
-
-      const processes: Process[] = rows.map((row) => ({
-        id: row.id,
-        projectId: row.project_id,
-        processTableId: row.process_table_id || undefined,
-        name: row.name,
-        level: row.level,
-        parentId: row.parent_id || undefined,
-        department: row.department || undefined,
-        assignee: row.assignee || undefined,
-        documentType: row.document_type || undefined,
-        startDate: row.start_date ? new Date(row.start_date) : undefined,
-        endDate: row.end_date ? new Date(row.end_date) : undefined,
-        status: row.status || undefined,
-        description: row.description || undefined,
-        bpmnElementId: row.bpmn_element_id || undefined,
-        hasManual: row.has_manual === 1,
-        manualId: row.manual_id || undefined,
-        displayOrder: row.display_order,
-        createdAt: new Date(row.created_at),
-        updatedAt: new Date(row.updated_at),
-        metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
-      }));
-
-      console.log('[IPC] Processes fetched:', processes.length);
-      return processes;
+      return rows.map(rowToProcess);
     } catch (error) {
-      console.error('[IPC] Error fetching processes:', error);
+      logger.error('Process', 'Error getting processes by processTable', error as Error);
       throw error;
     }
   });
 
-  // 工程をIDで取得
-  ipcMain.handle('process:getById', async (_, processId: string): Promise<Process> => {
+  // 工程取得（ID指定）
+  ipcMain.handle('process:getById', async (_, processId: string): Promise<Process | null> => {
     try {
       const db = getDatabase();
-      const stmt = db.prepare(`
-        SELECT 
-          id, project_id, process_table_id, name, level, parent_id, department, assignee,
-          document_type, start_date, end_date, status, description,
-          bpmn_element_id, has_manual, manual_id, display_order,
-          created_at, updated_at, metadata
-        FROM processes
-        WHERE id = ?
-      `);
+      const row = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
 
-      const row = stmt.get(processId) as {
-        id: string;
-        project_id: string;
-        process_table_id: string | null;
-        name: string;
-        level: ProcessLevel;
-        parent_id: string | null;
-        department: string | null;
-        assignee: string | null;
-        document_type: string | null;
-        start_date: number | null;
-        end_date: number | null;
-        status: string | null;
-        description: string | null;
-        bpmn_element_id: string | null;
-        has_manual: number | null;
-        manual_id: string | null;
-        display_order: number;
-        created_at: number;
-        updated_at: number;
-        metadata: string | null;
-      } | undefined;
+      if (!row) return null;
 
-      if (!row) {
-        throw new Error('工程が見つかりません');
-      }
-
-      const process: Process = {
-        id: row.id,
-        projectId: row.project_id,
-        processTableId: row.process_table_id || undefined,
-        name: row.name,
-        level: row.level,
-        parentId: row.parent_id || undefined,
-        department: row.department || undefined,
-        assignee: row.assignee || undefined,
-        documentType: row.document_type || undefined,
-        startDate: row.start_date ? new Date(row.start_date) : undefined,
-        endDate: row.end_date ? new Date(row.end_date) : undefined,
-        status: row.status || undefined,
-        description: row.description || undefined,
-        bpmnElementId: row.bpmn_element_id || undefined,
-        hasManual: row.has_manual === 1,
-        manualId: row.manual_id || undefined,
-        displayOrder: row.display_order,
-        createdAt: new Date(row.created_at),
-        updatedAt: new Date(row.updated_at),
-        metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
-      };
-
-      console.log('[IPC] Process fetched:', processId);
-      return process;
+      return rowToProcess(row);
     } catch (error) {
-      console.error('[IPC] Error fetching process:', error);
+      logger.error('Process', 'Error getting process by id', error as Error);
       throw error;
     }
   });
 
-  // 工程を更新
-  ipcMain.handle('process:update', async (_, processId: string, data: UpdateProcessDto): Promise<Process> => {
+  // 工程更新
+  ipcMain.handle('process:update', async (_, processId: string, data: UpdateProcessDto): Promise<UpdateProcessResult> => {
     try {
       const db = getDatabase();
       const now = Date.now();
 
-      // 既存の工程を取得
-      const existing = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
-      if (!existing) {
-        throw new Error('工程が見つかりません');
-      }
-
-      // 更新するフィールドを動的に構築
       const updates: string[] = [];
       const values: any[] = [];
 
@@ -313,321 +276,250 @@ export function registerProcessHandlers(): void {
         updates.push('name = ?');
         values.push(data.name);
       }
-      if (data.department !== undefined) {
-        updates.push('department = ?');
-        values.push(data.department);
+      if (data.laneId !== undefined) {
+        updates.push('lane_id = ?');
+        values.push(data.laneId);
       }
-      if (data.assignee !== undefined) {
-        updates.push('assignee = ?');
-        values.push(data.assignee);
+      if (data.bpmnElement !== undefined) {
+        updates.push('bpmn_element = ?');
+        values.push(data.bpmnElement);
       }
-      if (data.documentType !== undefined) {
-        updates.push('document_type = ?');
-        values.push(data.documentType);
+      if (data.taskType !== undefined) {
+        updates.push('task_type = ?');
+        values.push(data.taskType);
       }
-      if (data.startDate !== undefined) {
-        updates.push('start_date = ?');
-        values.push(data.startDate ? data.startDate.getTime() : null);
+      if (data.beforeProcessIds !== undefined) {
+        updates.push('before_process_ids = ?');
+        values.push(data.beforeProcessIds ? JSON.stringify(data.beforeProcessIds) : null);
       }
-      if (data.endDate !== undefined) {
-        updates.push('end_date = ?');
-        values.push(data.endDate ? data.endDate.getTime() : null);
+      if (data.documentation !== undefined) {
+        updates.push('documentation = ?');
+        values.push(data.documentation || null);
       }
-      if (data.status !== undefined) {
-        updates.push('status = ?');
-        values.push(data.status);
+      if (data.gatewayType !== undefined) {
+        updates.push('gateway_type = ?');
+        values.push(data.gatewayType || null);
       }
-      if (data.description !== undefined) {
-        updates.push('description = ?');
-        values.push(data.description);
+      if (data.conditionalFlows !== undefined) {
+        updates.push('conditional_flows = ?');
+        values.push(data.conditionalFlows ? JSON.stringify(data.conditionalFlows) : null);
       }
-      if (data.bpmnElementId !== undefined) {
-        updates.push('bpmn_element_id = ?');
-        values.push(data.bpmnElementId);
+      if (data.eventType !== undefined) {
+        updates.push('event_type = ?');
+        values.push(data.eventType || null);
+      }
+      if (data.intermediateEventType !== undefined) {
+        updates.push('intermediate_event_type = ?');
+        values.push(data.intermediateEventType || null);
+      }
+      if (data.eventDetails !== undefined) {
+        updates.push('event_details = ?');
+        values.push(data.eventDetails || null);
+      }
+      if (data.inputDataObjects !== undefined) {
+        updates.push('input_data_objects = ?');
+        values.push(data.inputDataObjects ? JSON.stringify(data.inputDataObjects) : null);
+      }
+      if (data.outputDataObjects !== undefined) {
+        updates.push('output_data_objects = ?');
+        values.push(data.outputDataObjects ? JSON.stringify(data.outputDataObjects) : null);
+      }
+      if (data.messageFlows !== undefined) {
+        updates.push('message_flows = ?');
+        values.push(data.messageFlows ? JSON.stringify(data.messageFlows) : null);
+      }
+      if (data.artifacts !== undefined) {
+        updates.push('artifacts = ?');
+        values.push(data.artifacts ? JSON.stringify(data.artifacts) : null);
+      }
+      if (data.customColumns !== undefined) {
+        updates.push('custom_columns = ?');
+        values.push(data.customColumns ? JSON.stringify(data.customColumns) : null);
       }
       if (data.displayOrder !== undefined) {
         updates.push('display_order = ?');
         values.push(data.displayOrder);
       }
 
+      if (updates.length === 0) {
+        throw new Error('No fields to update');
+      }
+
       updates.push('updated_at = ?');
       values.push(now);
       values.push(processId);
 
-      // 更新実行
-      const stmt = db.prepare(`
-        UPDATE processes 
+      db.prepare(`
+        UPDATE processes
         SET ${updates.join(', ')}
         WHERE id = ?
-      `);
+      `).run(...values);
 
-      stmt.run(...values);
+      // beforeProcessIdsが更新された場合、nextProcessIdsを再計算
+      let nextProcessIdsUpdated = false;
+      if (data.beforeProcessIds !== undefined) {
+        const process = db.prepare('SELECT process_table_id FROM processes WHERE id = ?').get(processId) as { process_table_id: string };
+        calculateNextProcessIds(db, process.process_table_id);
+        nextProcessIdsUpdated = true;
+      }
 
-      // 更新後のデータを取得
-      const updatedRow = db.prepare(`
-        SELECT 
-          id, project_id, name, level, parent_id, department, assignee,
-          document_type, start_date, end_date, status, description,
-          bpmn_element_id, has_manual, manual_id, display_order,
-          created_at, updated_at, metadata
-        FROM processes
-        WHERE id = ?
-      `).get(processId) as {
-        id: string;
-        project_id: string;
-        name: string;
-        level: ProcessLevel;
-        parent_id: string | null;
-        department: string | null;
-        assignee: string | null;
-        document_type: string | null;
-        start_date: number | null;
-        end_date: number | null;
-        status: string | null;
-        description: string | null;
-        bpmn_element_id: string | null;
-        has_manual: number | null;
-        manual_id: string | null;
-        display_order: number;
-        created_at: number;
-        updated_at: number;
-        metadata: string | null;
+      const updated = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
+
+      logger.info('Process', `Process updated: ${processId}`);
+      return {
+        process: rowToProcess(updated),
+        nextProcessIdsUpdated,
       };
-
-      const process: Process = {
-        id: updatedRow.id,
-        projectId: updatedRow.project_id,
-        name: updatedRow.name,
-        level: updatedRow.level,
-        parentId: updatedRow.parent_id || undefined,
-        department: updatedRow.department || undefined,
-        assignee: updatedRow.assignee || undefined,
-        documentType: updatedRow.document_type || undefined,
-        startDate: updatedRow.start_date ? new Date(updatedRow.start_date) : undefined,
-        endDate: updatedRow.end_date ? new Date(updatedRow.end_date) : undefined,
-        status: updatedRow.status || undefined,
-        description: updatedRow.description || undefined,
-        bpmnElementId: updatedRow.bpmn_element_id || undefined,
-        hasManual: updatedRow.has_manual === 1,
-        manualId: updatedRow.manual_id || undefined,
-        displayOrder: updatedRow.display_order,
-        createdAt: new Date(updatedRow.created_at),
-        updatedAt: new Date(updatedRow.updated_at),
-        metadata: updatedRow.metadata ? JSON.parse(updatedRow.metadata) : undefined,
-      };
-
-      console.log('[IPC] Process updated:', processId);
-      return process;
     } catch (error) {
-      console.error('[IPC] Error updating process:', error);
+      logger.error('Process', 'Error updating process', error as Error);
       throw error;
     }
   });
 
-  // 工程を削除
-  ipcMain.handle('process:delete', async (_, processId: string): Promise<boolean> => {
+  // 工程削除
+  ipcMain.handle('process:delete', async (_, processId: string): Promise<DeleteProcessResult> => {
     try {
       const db = getDatabase();
 
-      // 子工程の存在チェック
-      const children = db.prepare('SELECT COUNT(*) as count FROM processes WHERE parent_id = ?').get(processId) as { count: number };
-      if (children.count > 0) {
-        throw new Error('子工程が存在するため削除できません。先に子工程を削除してください。');
+      // 削除前に工程表IDを取得
+      const process = db.prepare('SELECT process_table_id FROM processes WHERE id = ?').get(processId) as { process_table_id: string } | undefined;
+
+      if (!process) {
+        logger.warn('Process', `Process not found: ${processId}`);
+        return { success: false, nextProcessIdsUpdated: false };
       }
 
-      // トランザクション開始
-      db.prepare('BEGIN TRANSACTION').run();
+      const result = db.prepare('DELETE FROM processes WHERE id = ?').run(processId);
 
-      try {
-        // 関連するBPMN要素の紐付けを解除
-        db.prepare('UPDATE processes SET bpmn_element_id = NULL WHERE bpmn_element_id IN (SELECT bpmn_element_id FROM processes WHERE id = ?)').run(processId);
+      // nextProcessIdsを再計算
+      calculateNextProcessIds(db, process.process_table_id);
 
-        // 関連するマニュアル工程リレーションを削除
-        db.prepare('DELETE FROM manual_process_relations WHERE process_id = ?').run(processId);
-
-        // 工程を削除
-        const result = db.prepare('DELETE FROM processes WHERE id = ?').run(processId);
-
-        if (result.changes === 0) {
-          throw new Error('工程が見つかりません');
-        }
-
-        // トランザクションコミット
-        db.prepare('COMMIT').run();
-
-        console.log('[IPC] Process deleted:', processId);
-        return true;
-      } catch (error) {
-        // ロールバック
-        db.prepare('ROLLBACK').run();
-        throw error;
-      }
+      logger.info('Process', `Process deleted: ${processId}`);
+      return {
+        success: result.changes > 0,
+        nextProcessIdsUpdated: true,
+      };
     } catch (error) {
-      console.error('[IPC] Error deleting process:', error);
+      logger.error('Process', 'Error deleting process', error as Error);
       throw error;
     }
   });
 
-  // 工程の階層移動
-  ipcMain.handle(
-    'process:move',
-    async (_, processId: string, newParentId: string | null): Promise<Process> => {
-      try {
-        const db = getDatabase();
-        const now = Date.now();
+  // beforeProcessIds更新
+  ipcMain.handle('process:updateBeforeProcessIds', async (_, processId: string, beforeProcessIds: string[]): Promise<Process> => {
+    try {
+      const db = getDatabase();
+      const now = Date.now();
 
-        // トランザクション開始
-        db.prepare('BEGIN TRANSACTION').run();
+      db.prepare(`
+        UPDATE processes
+        SET before_process_ids = ?, updated_at = ?
+        WHERE id = ?
+      `).run(JSON.stringify(beforeProcessIds), now, processId);
 
-        try {
-          // 移動対象の工程を取得
-          const process = db
-            .prepare('SELECT * FROM processes WHERE id = ?')
-            .get(processId) as any;
+      // nextProcessIdsを再計算
+      const process = db.prepare('SELECT process_table_id FROM processes WHERE id = ?').get(processId) as { process_table_id: string };
+      calculateNextProcessIds(db, process.process_table_id);
 
-          if (!process) {
-            throw new Error('移動対象の工程が見つかりません');
-          }
+      const updated = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
 
-          // 循環参照チェック
-          if (newParentId) {
-            let currentParentId: string | null = newParentId;
-            while (currentParentId) {
-              if (currentParentId === processId) {
-                throw new Error('循環参照が発生します。子孫ノードを親にすることはできません');
-              }
-              const parent = db
-                .prepare('SELECT parent_id FROM processes WHERE id = ?')
-                .get(currentParentId) as { parent_id: string | null } | undefined;
-              currentParentId = parent?.parent_id || null;
-            }
-          }
-
-          // 新しい親が存在するか確認
-          if (newParentId) {
-            const newParent = db
-              .prepare('SELECT id, level FROM processes WHERE id = ?')
-              .get(newParentId) as { id: string; level: string } | undefined;
-
-            if (!newParent) {
-              throw new Error('移動先の親工程が見つかりません');
-            }
-
-            // レベルの妥当性チェック
-            const levelOrder = ['large', 'medium', 'small', 'detail'];
-            const parentLevelIndex = levelOrder.indexOf(newParent.level);
-            const currentLevelIndex = levelOrder.indexOf(process.level);
-
-            if (currentLevelIndex <= parentLevelIndex) {
-              throw new Error(
-                `${process.level}工程を${newParent.level}工程の子にすることはできません`
-              );
-            }
-          }
-
-          // 新しいdisplayOrderを計算
-          const maxOrderRow = db
-            .prepare(
-              `SELECT MAX(display_order) as max_order 
-               FROM processes 
-               WHERE project_id = ? AND parent_id ${newParentId ? '= ?' : 'IS NULL'}`
-            )
-            .get(
-              newParentId ? [process.project_id, newParentId] : [process.project_id]
-            ) as { max_order: number | null };
-
-          const newDisplayOrder = (maxOrderRow.max_order || 0) + 1;
-
-          // 工程を更新
-          const updateStmt = db.prepare(`
-            UPDATE processes
-            SET parent_id = ?,
-                display_order = ?,
-                updated_at = ?
-            WHERE id = ?
-          `);
-
-          updateStmt.run(newParentId, newDisplayOrder, now, processId);
-
-          // 更新後の工程を取得
-          const updatedRow = db
-            .prepare('SELECT * FROM processes WHERE id = ?')
-            .get(processId) as any;
-
-          const updatedProcess: Process = {
-            id: updatedRow.id,
-            projectId: updatedRow.project_id,
-            name: updatedRow.name,
-            level: updatedRow.level as ProcessLevel,
-            parentId: updatedRow.parent_id || undefined,
-            department: updatedRow.department || undefined,
-            assignee: updatedRow.assignee || undefined,
-            documentType: updatedRow.document_type || undefined,
-            startDate: updatedRow.start_date ? new Date(updatedRow.start_date) : undefined,
-            endDate: updatedRow.end_date ? new Date(updatedRow.end_date) : undefined,
-            status: updatedRow.status || undefined,
-            description: updatedRow.description || undefined,
-            bpmnElementId: updatedRow.bpmn_element_id || undefined,
-            hasManual: Boolean(updatedRow.has_manual),
-            manualId: updatedRow.manual_id || undefined,
-            displayOrder: updatedRow.display_order,
-            createdAt: new Date(updatedRow.created_at),
-            updatedAt: new Date(updatedRow.updated_at),
-            metadata: updatedRow.metadata ? JSON.parse(updatedRow.metadata) : undefined,
-          };
-
-          // トランザクションコミット
-          db.prepare('COMMIT').run();
-
-          console.log('[IPC] Process moved:', processId, 'to parent:', newParentId);
-          return updatedProcess;
-        } catch (error) {
-          // ロールバック
-          db.prepare('ROLLBACK').run();
-          throw error;
-        }
-      } catch (error) {
-        console.error('[IPC] Error moving process:', error);
-        throw error;
-      }
+      logger.info('Process', `beforeProcessIds updated: ${processId}`);
+      return rowToProcess(updated);
+    } catch (error) {
+      logger.error('Process', 'Error updating beforeProcessIds', error as Error);
+      throw error;
     }
-  );
+  });
 
-  // 工程の並び順変更
-  ipcMain.handle(
-    'process:reorder',
-    async (_, processId: string, newDisplayOrder: number): Promise<boolean> => {
-      try {
-        const db = getDatabase();
-        const now = Date.now();
-
-        // 工程を取得
-        const process = db
-          .prepare('SELECT * FROM processes WHERE id = ?')
-          .get(processId) as any;
-
-        if (!process) {
-          throw new Error('工程が見つかりません');
-        }
-
-        // displayOrderを更新
-        const updateStmt = db.prepare(`
-          UPDATE processes
-          SET display_order = ?,
-              updated_at = ?
-          WHERE id = ?
-        `);
-
-        updateStmt.run(newDisplayOrder, now, processId);
-
-        console.log('[IPC] Process reordered:', processId, 'to order:', newDisplayOrder);
-        return true;
-      } catch (error) {
-        console.error('[IPC] Error reordering process:', error);
-        throw error;
-      }
+  // nextProcessIds自動計算（手動トリガー）
+  ipcMain.handle('process:calculateNextProcessIds', async (_, processTableId: string): Promise<void> => {
+    try {
+      const db = getDatabase();
+      calculateNextProcessIds(db, processTableId);
+      logger.info('Process', `nextProcessIds recalculated for processTable: ${processTableId}`);
+    } catch (error) {
+      logger.error('Process', 'Error calculating nextProcessIds', error as Error);
+      throw error;
     }
-  );
+  });
 
-  console.log('[IPC] Process handlers registered');
+  // カスタム列値設定
+  ipcMain.handle('process:setCustomValue', async (_, processId: string, columnName: string, value: any): Promise<Process> => {
+    try {
+      const db = getDatabase();
+      const now = Date.now();
+
+      const process = db.prepare('SELECT custom_columns FROM processes WHERE id = ?').get(processId) as { custom_columns: string | null } | undefined;
+
+      if (!process) {
+        throw new Error(`Process not found: ${processId}`);
+      }
+
+      const customColumns = process.custom_columns ? JSON.parse(process.custom_columns) : {};
+      customColumns[columnName] = value;
+
+      db.prepare(`
+        UPDATE processes
+        SET custom_columns = ?, updated_at = ?
+        WHERE id = ?
+      `).run(JSON.stringify(customColumns), now, processId);
+
+      const updated = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
+
+      logger.info('Process', `Custom value set: ${processId}.${columnName}`);
+      return rowToProcess(updated);
+    } catch (error) {
+      logger.error('Process', 'Error setting custom value', error as Error);
+      throw error;
+    }
+  });
+
+  // カスタム列値取得
+  ipcMain.handle('process:getCustomValue', async (_, processId: string, columnName: string): Promise<any> => {
+    try {
+      const db = getDatabase();
+
+      const process = db.prepare('SELECT custom_columns FROM processes WHERE id = ?').get(processId) as { custom_columns: string | null } | undefined;
+
+      if (!process) {
+        throw new Error(`Process not found: ${processId}`);
+      }
+
+      const customColumns = process.custom_columns ? JSON.parse(process.custom_columns) : {};
+      return customColumns[columnName];
+    } catch (error) {
+      logger.error('Process', 'Error getting custom value', error as Error);
+      throw error;
+    }
+  });
+
+  // 工程の表示順序を変更
+  ipcMain.handle('process:reorder', async (_, processId: string, newDisplayOrder: number): Promise<void> => {
+    try {
+      const db = getDatabase();
+      const now = Date.now();
+
+      // 工程の存在確認
+      const process = db.prepare('SELECT id FROM processes WHERE id = ?').get(processId) as { id: string } | undefined;
+
+      if (!process) {
+        throw new Error(`Process not found: ${processId}`);
+      }
+
+      // displayOrderを更新
+      db.prepare(`
+        UPDATE processes
+        SET display_order = ?, updated_at = ?
+        WHERE id = ?
+      `).run(newDisplayOrder, now, processId);
+
+      logger.info('Process', `Process reordered: ${processId} -> order ${newDisplayOrder}`);
+    } catch (error) {
+      logger.error('Process', 'Error reordering process', error as Error);
+      throw error;
+    }
+  });
+
+  logger.info('Process', 'Process handlers registered (V2)');
 }
+

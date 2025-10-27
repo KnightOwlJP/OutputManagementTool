@@ -8,68 +8,81 @@ import {
   CardHeader,
   Button as HeroButton,
   Input,
-  Chip,
   Dropdown,
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
-  Tabs,
-  Tab,
-  Select,
-  SelectItem,
 } from '@heroui/react';
 import { 
   BookOpenIcon,
-  PlusIcon,
-  TrashIcon,
-  ArrowPathIcon,
   ArrowDownTrayIcon,
-  ChevronRightIcon,
-  ChevronDownIcon,
-  Bars3Icon,
 } from '@heroicons/react/24/outline';
-import { AppLayout, Modal, SkeletonCard } from '@/components';
-import { ManualPreview } from '@/components/manual/ManualPreview';
-import { Manual, ManualSection } from '@/types/electron';
-import { ManualTable } from '@/types/project.types';
+import { AppLayout, SkeletonCard } from '@/components';
+import { Manual as ManualV2, Process } from '@/types/models';
+
 
 export default function ManualEditorPage() {
   const params = useParams();
   const router = useRouter();
-  const manualId = params.manualId as string;
-  const projectId = params.id as string;
 
-  const [manual, setManual] = useState<Manual | null>(null);
-  const [sections, setSections] = useState<ManualSection[]>([]);
-  const [manualTables, setManualTables] = useState<ManualTable[]>([]);
-  const [selectedManualTableId, setSelectedManualTableId] = useState<string | null>(null);
+  // URLから実際のID を取得（静的エクスポート対応）
+  const [manualId, setManualId] = useState<string>('');
+  const [projectId, setProjectId] = useState<string>('');
+
+  const [manual, setManual] = useState<ManualV2 | null>(null);
+  const [processes, setProcesses] = useState<Process[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedSection, setSelectedSection] = useState<ManualSection | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [editingTitle, setEditingTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<string>('edit');
   
-  // モーダル状態
-  const [isAddSectionModalOpen, setIsAddSectionModalOpen] = useState(false);
-  const [newSectionTitle, setNewSectionTitle] = useState('');
-  const [newSectionParentId, setNewSectionParentId] = useState<string | null>(null);
+  // Phase 9: セクション機能は削除（未使用）
+  // const [sections, setSections] = useState<ManualSection[]>([]);
+  // const [selectedSection, setSelectedSection] = useState<ManualSection | null>(null);
+  // const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  // const [isAddSectionModalOpen, setIsAddSectionModalOpen] = useState(false);
+  // const [newSectionTitle, setNewSectionTitle] = useState('');
+  // const [newSectionProcessId, setNewSectionProcessId] = useState<string>('');
+  // const [newSectionParentId, setNewSectionParentId] = useState<string | null>(null);
+  
+
+  /**
+   * URLからプロジェクトIDとマニュアルIDを抽出
+   */
+  useEffect(() => {
+    const extractIds = () => {
+      if (typeof window === 'undefined') return;
+      
+      const pathname = window.location.pathname;
+      const match = pathname.match(/\/projects\/([^\/]+)\/manuals\/([^\/]+)/);
+      const extractedProjectId = match ? match[1] : (params.id as string);
+      const extractedManualId = match ? match[2] : (params.manualId as string);
+      
+      // placeholderの場合は待機（Electronのhistory.replaceStateを待つ）
+      if (extractedProjectId === 'placeholder' || extractedManualId === 'placeholder') {
+        setTimeout(extractIds, 100);
+        return;
+      }
+      
+      setProjectId(extractedProjectId);
+      setManualId(extractedManualId);
+    };
+
+    extractIds();
+  }, [params]);
 
   useEffect(() => {
-    loadManual();
-  }, [manualId]);
+    if (manualId && projectId) {
+      loadManual();
+    }
+  }, [manualId, projectId]);
 
   const loadManual = async () => {
     setIsLoading(true);
     try {
-      // マニュアルテーブル一覧を取得
-      const tables = await window.electronAPI.manualTable.getByProject(projectId);
-      setManualTables(tables);
-      
+      // Phase 9: マニュアルは工程表と1対1の関係
       // マニュアル情報を取得
-      const manuals = await window.electronAPI.manual.getByProject(projectId);
-      const currentManual = manuals.find((m: Manual) => m.id === manualId);
+      const currentManual = await window.electronAPI.manualTable.getById(manualId);
       
       if (!currentManual) {
         alert('マニュアルが見つかりません');
@@ -79,51 +92,19 @@ export default function ManualEditorPage() {
       
       setManual(currentManual);
       
-      // デフォルトで最初のマニュアルテーブルを選択
-      if (tables.length > 0 && !selectedManualTableId) {
-        setSelectedManualTableId(tables[0].id);
+      // 工程表に紐づく工程を取得（コンテンツ生成用）
+      if (currentManual.processTableId) {
+        const { processIPC } = await import('@/lib/ipc-helpers');
+        const { data: processesData } = await processIPC.getByProcessTable(currentManual.processTableId);
+        setProcesses(processesData || []);
+      } else {
+        setProcesses([]);
       }
       
-      // セクション一覧を取得（実装予定）
-      // const sectionsData = await window.electronAPI.manual.getSections(manualId);
-      // setSections(sectionsData);
+      // Phase 9: マニュアルはMarkdownコンテンツを直接編集
+      setEditingTitle(currentManual.name);
+      setEditingContent(currentManual.content || '');
       
-      // デモデータ
-      const demoSections: ManualSection[] = [
-        {
-          id: '1',
-          manualId,
-          title: '第1章 概要',
-          content: '# 概要\n\nこのマニュアルは...',
-          level: 1,
-          displayOrder: 1,
-          autoGenerated: true,
-          syncStatus: 'synced',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          manualId,
-          title: '1.1 目的',
-          content: '## 目的\n\n[詳細は手動で入力してください]',
-          level: 2,
-          parentId: '1',
-          displayOrder: 1,
-          autoGenerated: true,
-          syncStatus: 'synced',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
-      setSections(demoSections);
-      
-      // デフォルトで最初のセクションを選択
-      if (demoSections.length > 0) {
-        setSelectedSection(demoSections[0]);
-        setEditingTitle(demoSections[0].title);
-        setEditingContent(demoSections[0].content);
-      }
     } catch (error) {
       console.error('[ManualEditor] Failed to load manual:', error);
       alert('マニュアルの読み込みに失敗しました');
@@ -133,28 +114,26 @@ export default function ManualEditorPage() {
   };
 
   const handleSaveSection = async () => {
-    if (!selectedSection) return;
+    if (!manual) return;
     
     setIsSaving(true);
     try {
-      // セクション更新API（実装予定）
-      // await window.electronAPI.manual.updateSection(selectedSection.id, {
-      //   title: editingTitle,
-      //   content: editingContent,
-      // });
+      // Phase 9: マニュアルのcontent（Markdown）を直接更新
+      await window.electronAPI.manualTable.update(manual.id, {
+        name: editingTitle,
+        content: editingContent,
+      });
       
       // ローカル状態を更新
-      setSections(sections.map(s => 
-        s.id === selectedSection.id 
-          ? { ...s, title: editingTitle, content: editingContent, updatedAt: new Date().toISOString() }
-          : s
-      ));
-      
-      setSelectedSection({ ...selectedSection, title: editingTitle, content: editingContent });
+      setManual({
+        ...manual,
+        name: editingTitle,
+        content: editingContent,
+      });
       
       alert('保存しました');
     } catch (error) {
-      console.error('[ManualEditor] Failed to save section:', error);
+      console.error('[ManualEditor] Failed to save manual:', error);
       alert('保存に失敗しました');
     } finally {
       setIsSaving(false);
@@ -162,68 +141,22 @@ export default function ManualEditorPage() {
   };
 
   const handleAddSection = async () => {
-    if (!newSectionTitle.trim()) {
-      alert('セクションタイトルを入力してください');
-      return;
-    }
-    
-    try {
-      // セクション作成API（実装予定）
-      const newSection: ManualSection = {
-        id: Date.now().toString(),
-        manualId,
-        title: newSectionTitle,
-        content: '[詳細は手動で入力してください]',
-        level: newSectionParentId ? 2 : 1,
-        parentId: newSectionParentId || undefined,
-        displayOrder: sections.filter(s => s.parentId === newSectionParentId).length + 1,
-        autoGenerated: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      
-      setSections([...sections, newSection]);
-      setIsAddSectionModalOpen(false);
-      setNewSectionTitle('');
-      setNewSectionParentId(null);
-    } catch (error) {
-      console.error('[ManualEditor] Failed to add section:', error);
-      alert('セクションの追加に失敗しました');
-    }
+    // TODO: Phase 9ではセクション機能は工程表から自動生成
+    // 現在は未実装
+    alert('セクション機能は今後実装予定です');
   };
 
   const handleDeleteSection = async (sectionId: string) => {
-    if (!confirm('このセクションを削除してもよろしいですか？')) {
-      return;
-    }
-    
-    try {
-      // セクション削除API（実装予定）
-      setSections(sections.filter(s => s.id !== sectionId));
-      
-      if (selectedSection?.id === sectionId) {
-        const remaining = sections.filter(s => s.id !== sectionId);
-        if (remaining.length > 0) {
-          setSelectedSection(remaining[0]);
-          setEditingTitle(remaining[0].title);
-          setEditingContent(remaining[0].content);
-        } else {
-          setSelectedSection(null);
-          setEditingTitle('');
-          setEditingContent('');
-        }
-      }
-    } catch (error) {
-      console.error('[ManualEditor] Failed to delete section:', error);
-      alert('セクションの削除に失敗しました');
-    }
+    // TODO: Phase 9ではセクション機能は工程表から自動生成
+    // 現在は未実装
+    alert('セクション機能は今後実装予定です');
   };
 
   const handleSyncWithProcesses = async () => {
     if (!manual) return;
     
     try {
-      // Phase 6では手動同期
+      // Phase 9では工程表から自動生成
       alert('この機能は今後のアップデートで実装予定です。\n現在は手動でマニュアルを更新してください。');
       await loadManual();
     } catch (error) {
@@ -236,88 +169,29 @@ export default function ManualEditorPage() {
     if (!manual) return;
     
     try {
-      await window.electronAPI.manual.export(manual.id, format);
-      alert(`${format.toUpperCase()}形式でエクスポートしました`);
+      // Markdownエクスポート
+      if (format === 'markdown') {
+        const content = `# ${manual.name}\n\n${manual.content || ''}`;
+        const blob = new Blob([content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${manual.name}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert('Markdown形式でエクスポートしました');
+      } 
+      // HTML/PDFエクスポート
+      else if (format === 'html' || format === 'pdf') {
+        // TODO: サーバーサイドでMarkdown→HTML変換が必要
+        alert(`${format.toUpperCase()}形式のエクスポート機能は今後実装予定です`);
+      }
     } catch (error) {
       console.error('[ManualEditor] Failed to export:', error);
       alert('エクスポートに失敗しました');
     }
-  };
-
-  const toggleSectionExpand = (sectionId: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(sectionId)) {
-      newExpanded.delete(sectionId);
-    } else {
-      newExpanded.add(sectionId);
-    }
-    setExpandedSections(newExpanded);
-  };
-
-  const renderSectionTree = (parentId: string | null = null, level: number = 0) => {
-    const childSections = sections.filter(s => (s.parentId || null) === parentId);
-    
-    return childSections.map(section => {
-      const hasChildren = sections.some(s => s.parentId === section.id);
-      const isExpanded = expandedSections.has(section.id);
-      const isSelected = selectedSection?.id === section.id;
-      
-      return (
-        <div key={section.id}>
-          <div
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-              isSelected
-                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-            style={{ paddingLeft: `${level * 20 + 12}px` }}
-            onClick={() => {
-              setSelectedSection(section);
-              setEditingTitle(section.title);
-              setEditingContent(section.content);
-            }}
-          >
-            {hasChildren && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleSectionExpand(section.id);
-                }}
-                className="flex-shrink-0"
-              >
-                {isExpanded ? (
-                  <ChevronDownIcon className="w-4 h-4" />
-                ) : (
-                  <ChevronRightIcon className="w-4 h-4" />
-                )}
-              </button>
-            )}
-            {!hasChildren && <div className="w-4" />}
-            
-            <span className="flex-1 text-sm truncate">{section.title}</span>
-            
-            {section.syncStatus === 'modified' && (
-              <Chip size="sm" color="warning" variant="flat">変更</Chip>
-            )}
-            {section.syncStatus === 'conflict' && (
-              <Chip size="sm" color="danger" variant="flat">競合</Chip>
-            )}
-            
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeleteSection(section.id);
-              }}
-              className="flex-shrink-0 p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded"
-            >
-              <TrashIcon className="w-4 h-4 text-red-500" />
-            </button>
-          </div>
-          
-          {hasChildren && isExpanded && renderSectionTree(section.id, level + 1)}
-        </div>
-      );
-    });
   };
 
   if (isLoading) {
@@ -372,43 +246,12 @@ export default function ManualEditorPage() {
             <BookOpenIcon className="w-8 h-8 text-blue-500" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-                {manual.title}
+                {manual.name}
               </h1>
-              {manual.autoGenerated && (
-                <Chip size="sm" color="secondary" variant="flat" className="mt-1">
-                  自動生成
-                </Chip>
-              )}
             </div>
           </div>
 
           <div className="flex gap-2">
-            {/* マニュアルテーブル選択 */}
-            {manualTables.length > 0 && (
-              <Select
-                label="グループ"
-                placeholder="グループを選択"
-                selectedKeys={selectedManualTableId ? [selectedManualTableId] : []}
-                onChange={(e) => setSelectedManualTableId(e.target.value)}
-                className="w-64"
-                size="sm"
-              >
-                {manualTables.map((table) => (
-                  <SelectItem key={table.id}>
-                    {table.name}
-                  </SelectItem>
-                ))}
-              </Select>
-            )}
-            {manual.autoGenerated && (
-              <HeroButton
-                variant="bordered"
-                onClick={handleSyncWithProcesses}
-                startContent={<ArrowPathIcon className="w-5 h-5" />}
-              >
-                同期
-              </HeroButton>
-            )}
             <Dropdown>
               <DropdownTrigger>
                 <HeroButton
@@ -430,173 +273,48 @@ export default function ManualEditorPage() {
           </div>
         </div>
 
-        {/* メインコンテンツ */}
-        <div className="grid grid-cols-12 gap-6">
-          {/* 左サイドバー - セクションツリー */}
-          <div className="col-span-3">
-            <Card className="shadow-sm">
-              <CardHeader className="flex justify-between items-center p-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-                  目次
-                </h2>
+        {/* メインコンテンツ - Phase 9: 単一マークダウンコンテンツエディタ */}
+        <div>
+          <Card className="shadow-sm">
+            <CardHeader className="p-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                マニュアル編集
+              </h3>
+            </CardHeader>
+            <CardBody className="p-4 space-y-4">
+              <Input
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                placeholder="マニュアルタイトル"
+                classNames={{
+                  input: "text-lg font-semibold",
+                  inputWrapper: "shadow-none",
+                }}
+              />
+              <textarea
+                value={editingContent}
+                onChange={(e) => setEditingContent(e.target.value)}
+                placeholder="Markdown形式で内容を入力してください"
+                rows={25}
+                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-50 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono text-sm"
+              />
+              
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  最終更新: {manual.updatedAt ? new Date(manual.updatedAt).toLocaleString('ja-JP') : '未保存'}
+                </div>
                 <HeroButton
-                  size="sm"
                   color="primary"
-                  isIconOnly
-                  onClick={() => setIsAddSectionModalOpen(true)}
+                  onClick={handleSaveSection}
+                  disabled={isSaving}
                 >
-                  <PlusIcon className="w-4 h-4" />
+                  {isSaving ? '保存中...' : '保存'}
                 </HeroButton>
-              </CardHeader>
-              <CardBody className="p-2">
-                {sections.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      セクションがありません
-                    </p>
-                    <HeroButton
-                      size="sm"
-                      color="primary"
-                      variant="flat"
-                      className="mt-3"
-                      onClick={() => setIsAddSectionModalOpen(true)}
-                      startContent={<PlusIcon className="w-4 h-4" />}
-                    >
-                      セクション追加
-                    </HeroButton>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {renderSectionTree()}
-                  </div>
-                )}
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* メインエディタ */}
-          <div className="col-span-9">
-            <Card className="shadow-sm">
-              <CardHeader className="p-0">
-                <Tabs
-                  selectedKey={activeTab}
-                  onSelectionChange={(key) => setActiveTab(key as string)}
-                  fullWidth
-                  classNames={{
-                    tabList: "rounded-t-lg",
-                  }}
-                >
-                  <Tab key="edit" title="編集" />
-                  <Tab key="preview" title="プレビュー" />
-                </Tabs>
-              </CardHeader>
-              <CardBody className="p-0">
-                {activeTab === 'edit' ? (
-                  // 編集タブ
-                  selectedSection ? (
-                    <div className="p-4 space-y-4">
-                      <Input
-                        value={editingTitle}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        placeholder="セクションタイトル"
-                        classNames={{
-                          input: "text-lg font-semibold",
-                          inputWrapper: "shadow-none",
-                        }}
-                      />
-                      <textarea
-                        value={editingContent}
-                        onChange={(e) => setEditingContent(e.target.value)}
-                        placeholder="Markdown形式で内容を入力してください"
-                        rows={20}
-                        className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-50 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono text-sm"
-                      />
-                      
-                      <div className="flex justify-between items-center">
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          最終更新: {new Date(selectedSection.updatedAt).toLocaleString('ja-JP')}
-                        </div>
-                        <HeroButton
-                          color="primary"
-                          onClick={handleSaveSection}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? '保存中...' : '保存'}
-                        </HeroButton>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-12 text-center">
-                      <Bars3Icon className="w-16 h-16 text-gray-300 dark:text-gray-700 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        セクションを選択してください
-                      </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        左側の目次からセクションを選択するか、新規作成してください
-                      </p>
-                    </div>
-                  )
-                ) : (
-                  // プレビュータブ
-                  <div className="p-6 max-h-[800px] overflow-y-auto">
-                    {manual && (
-                      <ManualPreview
-                        title={manual.title}
-                        sections={sections}
-                        showTableOfContents={true}
-                      />
-                    )}
-                  </div>
-                )}
-              </CardBody>
-            </Card>
-          </div>
+              </div>
+            </CardBody>
+          </Card>
         </div>
 
-        {/* セクション追加モーダル */}
-        <Modal
-          isOpen={isAddSectionModalOpen}
-          onClose={() => {
-            setIsAddSectionModalOpen(false);
-            setNewSectionTitle('');
-            setNewSectionParentId(null);
-          }}
-          title="セクション追加"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                タイトル *
-              </label>
-              <Input
-                value={newSectionTitle}
-                onChange={(e) => setNewSectionTitle(e.target.value)}
-                placeholder="セクションのタイトルを入力"
-                fullWidth
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <HeroButton
-                variant="bordered"
-                onClick={() => {
-                  setIsAddSectionModalOpen(false);
-                  setNewSectionTitle('');
-                  setNewSectionParentId(null);
-                }}
-              >
-                キャンセル
-              </HeroButton>
-              <HeroButton
-                color="primary"
-                onClick={handleAddSection}
-                disabled={!newSectionTitle.trim()}
-              >
-                追加
-              </HeroButton>
-            </div>
-          </div>
-        </Modal>
       </div>
     </AppLayout>
   );

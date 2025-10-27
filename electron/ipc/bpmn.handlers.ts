@@ -25,6 +25,8 @@ interface BpmnDiagram {
   name: string;
   xmlContent: string;
   version: number;
+  detail_table_id?: string | null;
+  parent_entity_id?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -345,6 +347,146 @@ export function registerBpmnHandlers(): void {
       }
     } catch (error) {
       console.error('[IPC] Error deleting BPMN diagram:', error);
+      throw error;
+    }
+  });
+
+  // ===== Phase 8: 階層構造管理 =====
+
+  // 詳細表を作成
+  ipcMain.handle('bpmn:createDetailTable', async (_, params: { entityId: string; syncProcess?: boolean; syncManual?: boolean }) => {
+    try {
+      const { entityId, syncProcess = true, syncManual = true } = params;
+      const db = getDatabase();
+      const now = Date.now();
+
+      // 親エンティティの存在確認
+      const parentEntity = db.prepare('SELECT * FROM bpmn_diagrams WHERE id = ?').get(entityId) as BpmnDiagram | undefined;
+      if (!parentEntity) {
+        throw new Error('親BPMNダイアグラムが見つかりません');
+      }
+
+      // 既に詳細表が存在する場合はエラー
+      if (parentEntity.detail_table_id) {
+        throw new Error('既に詳細表が作成されています');
+      }
+
+      // ルートエンティティを作成
+      const rootId = `root_${now}_${Math.random().toString(36).substring(7)}`;
+      
+      // デフォルトBPMN XMLを生成
+      const rootXml = DEFAULT_BPMN_XML.replace('Process_1', `Process_${rootId}`);
+
+      // ルートBPMNダイアグラムをデータベースに挿入
+      db.prepare(`
+        INSERT INTO bpmn_diagrams (
+          id, project_id, name, xml_content, version, file_path,
+          parent_entity_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        rootId,
+        parentEntity.projectId,
+        `${parentEntity.name} - 詳細`,
+        rootXml,
+        1,
+        `bpmn_${rootId}.bpmn`,
+        entityId,
+        now,
+        now
+      );
+
+      // 親エンティティの detail_table_id を更新
+      db.prepare('UPDATE bpmn_diagrams SET detail_table_id = ?, updated_at = ? WHERE id = ?')
+        .run(rootId, now, entityId);
+
+      // TODO: Phase 8.2 - 工程表・マニュアルとの同期
+      if (syncProcess) {
+        console.log('[BPMN] Process sync not yet implemented');
+      }
+      if (syncManual) {
+        console.log('[BPMN] Manual sync not yet implemented');
+      }
+
+      console.log('[IPC] BPMN detail table created:', rootId, 'for entity:', entityId);
+      return { bpmnDetailTable: { id: rootId } };
+    } catch (error) {
+      console.error('[IPC] Error creating BPMN detail table:', error);
+      throw error;
+    }
+  });
+
+  // 詳細表を取得
+  ipcMain.handle('bpmn:getDetailTable', async (_, entityId: string) => {
+    try {
+      const db = getDatabase();
+
+      // エンティティの detail_table_id を取得
+      const entity = db.prepare('SELECT detail_table_id FROM bpmn_diagrams WHERE id = ?').get(entityId) as { detail_table_id: string | null } | undefined;
+      if (!entity || !entity.detail_table_id) {
+        return null;
+      }
+
+      const rootId = entity.detail_table_id;
+
+      // ルートエンティティを取得
+      const root = db.prepare('SELECT * FROM bpmn_diagrams WHERE id = ?').get(rootId) as any;
+      if (!root) {
+        return null;
+      }
+
+      // 詳細表内の全エンティティを取得
+      const entities = db.prepare('SELECT * FROM bpmn_diagrams WHERE parent_entity_id = ? OR id = ?')
+        .all(entityId, rootId) as any[];
+
+      // 親エンティティを取得
+      const parentEntity = root.parent_entity_id
+        ? db.prepare('SELECT * FROM bpmn_diagrams WHERE id = ?').get(root.parent_entity_id)
+        : null;
+
+      // 日付フィールドをDateオブジェクトに変換
+      const convertDates = (obj: any) => {
+        if (obj.created_at) obj.created_at = new Date(obj.created_at);
+        if (obj.updated_at) obj.updated_at = new Date(obj.updated_at);
+        return obj;
+      };
+
+      console.log('[IPC] BPMN detail table retrieved:', rootId);
+      return {
+        root: convertDates(root),
+        entities: entities.map(convertDates),
+        parentEntity: parentEntity ? convertDates(parentEntity) : null,
+      };
+    } catch (error) {
+      console.error('[IPC] Error getting BPMN detail table:', error);
+      throw error;
+    }
+  });
+
+  // 親エンティティを取得
+  ipcMain.handle('bpmn:getParentEntity', async (_, rootId: string) => {
+    try {
+      const db = getDatabase();
+
+      // ルートエンティティを取得
+      const root = db.prepare('SELECT parent_entity_id FROM bpmn_diagrams WHERE id = ?').get(rootId) as { parent_entity_id: string | null } | undefined;
+      if (!root || !root.parent_entity_id) {
+        return null;
+      }
+
+      // 親エンティティを取得
+      const parentEntity = db.prepare('SELECT * FROM bpmn_diagrams WHERE id = ?').get(root.parent_entity_id) as any;
+      if (!parentEntity) {
+        return null;
+      }
+
+      // 日付フィールドをDateオブジェクトに変換
+      if (parentEntity.created_at) parentEntity.created_at = new Date(parentEntity.created_at);
+      if (parentEntity.updated_at) parentEntity.updated_at = new Date(parentEntity.updated_at);
+
+      console.log('[IPC] BPMN parent entity retrieved:', root.parent_entity_id);
+      return parentEntity;
+    } catch (error) {
+      console.error('[IPC] Error getting BPMN parent entity:', error);
       throw error;
     }
   });

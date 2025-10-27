@@ -139,11 +139,15 @@ export function parseProcessSheet(
         if (row.detailProcess && row.detailProcess.trim()) {
           const key = `detail-${row.largeProcess}-${row.mediumProcess}-${row.smallProcess}-${row.detailProcess}`;
           if (!processMap.has(key)) {
+            const rawStatus = row.status?.trim();
+            const validStatuses = ['not-started', 'in-progress', 'completed', 'on-hold'] as const;
+            const status = validStatuses.includes(rawStatus as any) ? rawStatus as 'not-started' | 'in-progress' | 'completed' | 'on-hold' : undefined;
+            
             processMap.set(key, {
               name: row.detailProcess.trim(),
               level: 'detail',
               description: row.description?.trim(),
-              status: row.status?.trim(),
+              status,
               displayOrder: displayOrder++,
             });
           }

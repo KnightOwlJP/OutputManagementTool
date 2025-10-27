@@ -9,7 +9,7 @@ import {
   TrashIcon,
   PencilIcon,
 } from '@heroicons/react/24/outline';
-import { ProcessTable, ProcessLevel } from '@/types/project.types';
+import { ProcessTable, ProcessLevel } from '@/types/models';
 import { useToast } from '@/contexts/ToastContext';
 
 interface ProcessTableListProps {
@@ -149,11 +149,6 @@ export function ProcessTableList({
                             <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
                               {table.description}
                             </p>
-                          )}
-                          {table.parentProcessIds && table.parentProcessIds.length > 0 && (
-                            <Chip size="sm" variant="flat" color="default" className="text-xs">
-                              上位工程: {table.parentProcessIds.length}件
-                            </Chip>
                           )}
                         </div>
                         <div className="flex gap-1 ml-2">

@@ -25,6 +25,7 @@ export default function ProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [newProjectStoragePath, setNewProjectStoragePath] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nameError, setNameError] = useState('');
 
@@ -71,6 +72,7 @@ export default function ProjectsPage() {
       const { data, error } = await projectIPC.create({
         name: newProjectName.trim(),
         description: newProjectDescription.trim() || undefined,
+        storagePath: newProjectStoragePath || undefined,
       });
 
       if (error) {
@@ -79,6 +81,7 @@ export default function ProjectsPage() {
         await loadProjects();
         setNewProjectName('');
         setNewProjectDescription('');
+        setNewProjectStoragePath('');
         setIsCreateModalOpen(false);
         showToast('success', 'プロジェクトを作成しました');
       }
@@ -87,6 +90,19 @@ export default function ProjectsPage() {
     }
 
     setIsSubmitting(false);
+  };
+
+  // 保存先パス選択
+  const handleSelectStoragePath = async () => {
+    try {
+      const path = await window.electronAPI.file.selectDirectory();
+      if (path) {
+        setNewProjectStoragePath(path);
+      }
+    } catch (error) {
+      console.error('[Projects] Failed to select directory:', error);
+      showToast('error', 'ディレクトリの選択に失敗しました');
+    }
   };
 
   // プロジェクト削除
@@ -276,6 +292,7 @@ export default function ProjectsPage() {
           setIsCreateModalOpen(false);
           setNewProjectName('');
           setNewProjectDescription('');
+          setNewProjectStoragePath('');
           setNameError('');
         }}
         title="新しいプロジェクトを作成"
@@ -318,13 +335,49 @@ export default function ProjectsPage() {
             size="lg"
             labelPlacement="outside"
           />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              保存先パス（任意）
+            </label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="デフォルトの保存先を使用"
+                value={newProjectStoragePath}
+                onChange={(e) => setNewProjectStoragePath(e.target.value)}
+                variant="bordered"
+                size="lg"
+                isReadOnly
+                classNames={{
+                  input: "cursor-pointer",
+                  inputWrapper: "cursor-pointer"
+                }}
+              />
+              <Button
+                color="default"
+                variant="bordered"
+                onPress={handleSelectStoragePath}
+                size="lg"
+                className="flex-shrink-0"
+              >
+                <FolderIcon className="w-5 h-5 mr-1" />
+                選択
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {newProjectStoragePath 
+                ? `選択されたパス: ${newProjectStoragePath}`
+                : 'デフォルトの保存先を使用します'
+              }
+            </p>
+          </div>
           
           <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
               💡 ヒント
             </p>
             <p className="text-xs text-blue-800 dark:text-blue-200">
-              プロジェクト名は後から変更できます。まずは気軽に作成してみましょう。
+              プロジェクト名と説明は後から変更できます。保存先パスは作成後に変更できません。
             </p>
           </div>
         </div>

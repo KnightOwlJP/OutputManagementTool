@@ -27,6 +27,8 @@ import {
   Bars3Icon,
   ChevronRightIcon,
   ChevronDownIcon,
+  FolderPlusIcon,
+  FolderOpenIcon,
 } from '@heroicons/react/24/outline';
 import { Process, ProcessLevel } from '@/types/project.types';
 import { useToast } from '@/contexts/ToastContext';
@@ -39,6 +41,10 @@ interface IntegratedProcessTableProps {
   onProcessReorder?: (processId: string, newOrder: number) => Promise<void>;
   onProcessMove?: (processId: string, newParentId: string | null) => Promise<void>;
   isLoading?: boolean;
+  // Phase 8: 詳細表機能
+  onCreateDetailTable?: (entityId: string) => void;
+  onOpenDetailTable?: (entityId: string) => void;
+  isCreatingDetailTable?: boolean;
 }
 
 interface TreeNode extends Process {
@@ -54,6 +60,9 @@ export function IntegratedProcessTable({
   onProcessReorder,
   onProcessMove,
   isLoading = false,
+  onCreateDetailTable,
+  onOpenDetailTable,
+  isCreatingDetailTable,
 }: IntegratedProcessTableProps) {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,8 +193,7 @@ export function IntegratedProcessTable({
   };
 
   // 編集開始
-  const startEdit = (process: Process, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const startEdit = (process: Process) => {
     setEditingId(process.id);
     setEditingData({
       name: process.name,
@@ -321,7 +329,7 @@ export function IntegratedProcessTable({
               <Input
                 size="sm"
                 value={editingData.name || ''}
-                onValueChange={(value) => setEditingData({ ...editingData, name: value })}
+                onValueChange={(value: string) => setEditingData({ ...editingData, name: value })}
                 className="flex-1"
                 autoFocus
               />
@@ -348,7 +356,7 @@ export function IntegratedProcessTable({
           <Input
             size="sm"
             value={editingData.department || ''}
-            onValueChange={(value) => setEditingData({ ...editingData, department: value })}
+            onValueChange={(value: string) => setEditingData({ ...editingData, department: value })}
           />
         ) : (
           <span className="text-sm">{process.department || '-'}</span>
@@ -359,7 +367,7 @@ export function IntegratedProcessTable({
           <Input
             size="sm"
             value={editingData.assignee || ''}
-            onValueChange={(value) => setEditingData({ ...editingData, assignee: value })}
+            onValueChange={(value: string) => setEditingData({ ...editingData, assignee: value })}
           />
         ) : (
           <span className="text-sm">{process.assignee || '-'}</span>
@@ -370,7 +378,7 @@ export function IntegratedProcessTable({
           <Input
             size="sm"
             value={editingData.documentType || ''}
-            onValueChange={(value) => setEditingData({ ...editingData, documentType: value })}
+            onValueChange={(value: string) => setEditingData({ ...editingData, documentType: value })}
           />
         ) : (
           <span className="text-sm">{process.documentType || '-'}</span>
@@ -382,7 +390,7 @@ export function IntegratedProcessTable({
             type="date"
             size="sm"
             value={formatDate(editingData.startDate)}
-            onChange={(e) => setEditingData({ ...editingData, startDate: e.target.value ? new Date(e.target.value) : undefined })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingData({ ...editingData, startDate: e.target.value ? new Date(e.target.value) : undefined })}
           />
         ) : (
           <span className="text-sm">{formatDate(process.startDate) || '-'}</span>
@@ -394,7 +402,7 @@ export function IntegratedProcessTable({
             type="date"
             size="sm"
             value={formatDate(editingData.endDate)}
-            onChange={(e) => setEditingData({ ...editingData, endDate: e.target.value ? new Date(e.target.value) : undefined })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingData({ ...editingData, endDate: e.target.value ? new Date(e.target.value) : undefined })}
           />
         ) : (
           <span className="text-sm">{formatDate(process.endDate) || '-'}</span>
@@ -436,7 +444,7 @@ export function IntegratedProcessTable({
                 size="sm"
                 variant="light"
                 color="default"
-                onPress={(e) => startEdit(process, e as any)}
+                onPress={() => startEdit(process)}
               >
                 <PencilIcon className="w-4 h-4" />
               </Button>
@@ -448,12 +456,37 @@ export function IntegratedProcessTable({
                   size="sm"
                   variant="light"
                   color="primary"
-                  onPress={(e) => {
-                    (e as any).stopPropagation();
-                    onProcessCreate(process.id);
-                  }}
+                  onPress={() => onProcessCreate(process.id)}
                 >
                   <PlusCircleIcon className="w-4 h-4" />
+                </Button>
+              </Tooltip>
+            )}
+            {/* Phase 8: 詳細表ボタン */}
+            {process.detailTableId && onOpenDetailTable && (
+              <Tooltip content="詳細表を開く">
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="light"
+                  color="secondary"
+                  onPress={() => onOpenDetailTable(process.id)}
+                >
+                  <FolderOpenIcon className="w-4 h-4" />
+                </Button>
+              </Tooltip>
+            )}
+            {!process.detailTableId && onCreateDetailTable && (
+              <Tooltip content="詳細表を作成">
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="light"
+                  color="success"
+                  onPress={() => onCreateDetailTable(process.id)}
+                  isLoading={isCreatingDetailTable}
+                >
+                  <FolderPlusIcon className="w-4 h-4" />
                 </Button>
               </Tooltip>
             )}
@@ -464,10 +497,7 @@ export function IntegratedProcessTable({
                   size="sm"
                   variant="light"
                   color="danger"
-                  onPress={(e) => {
-                    (e as any).stopPropagation();
-                    onProcessDelete(process.id);
-                  }}
+                  onPress={() => onProcessDelete(process.id)}
                 >
                   <TrashIcon className="w-4 h-4" />
                 </Button>
@@ -498,9 +528,11 @@ export function IntegratedProcessTable({
         <Select
           placeholder="レベルで絞り込み"
           selectedKeys={[levelFilter]}
-          onSelectionChange={(keys) => {
-            const value = Array.from(keys)[0] as ProcessLevel | 'all';
-            setLevelFilter(value);
+          onSelectionChange={(keys: 'all' | Set<React.Key>) => {
+            if (keys !== 'all') {
+              const value = Array.from(keys)[0] as ProcessLevel | 'all';
+              setLevelFilter(value);
+            }
           }}
           className="w-full sm:w-48"
           startContent={<FunnelIcon className="w-4 h-4 text-gray-400" />}
@@ -588,7 +620,7 @@ export function IntegratedProcessTable({
               </div>
             }
           >
-            {(process) => (
+            {(process: TreeNode) => (
               <TableRow
                 key={process.id}
                 className={`
@@ -596,8 +628,8 @@ export function IntegratedProcessTable({
                   ${draggedId === process.id ? 'opacity-50' : ''}
                   ${dropTargetId === process.id ? 'bg-blue-50 dark:bg-blue-900' : ''}
                 `}
-                onDragOver={(e) => handleDragOver(process.id, e as any)}
-                onDrop={(e) => handleDrop(process.id, e as any)}
+                onDragOver={(e: React.DragEvent) => handleDragOver(process.id, e)}
+                onDrop={(e: React.DragEvent) => handleDrop(process.id, e)}
               >
                 <TableCell>{renderCell(process, 'name')}</TableCell>
                 <TableCell>{renderCell(process, 'level')}</TableCell>

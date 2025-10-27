@@ -1,27 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardBody, CardHeader, Accordion, AccordionItem, Divider, Chip, Code } from '@heroui/react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import {
   BookOpenIcon,
   ChartBarIcon,
   DocumentTextIcon,
-  ClockIcon,
   FolderIcon,
   RocketLaunchIcon,
-  ArrowsRightLeftIcon,
   TableCellsIcon,
-  DocumentDuplicateIcon,
   Cog6ToothIcon,
   CommandLineIcon,
   ExclamationTriangleIcon,
   QuestionMarkCircleIcon,
+  SwatchIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 
 export default function ManualPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-
   return (
     <AppLayout>
       <div className="max-w-5xl mx-auto space-y-8 pb-12">
@@ -33,9 +30,44 @@ export default function ManualPage() {
           </p>
           <div className="flex items-center justify-center gap-2">
             <Chip color="primary" variant="flat">Version 0.6.0</Chip>
-            <Chip color="success" variant="flat">Phase 6 完了</Chip>
+            <Chip color="success" variant="flat">フラット構造対応</Chip>
+            <Chip color="secondary" variant="flat">BPMN 2.0準拠</Chip>
           </div>
         </div>
+
+        {/* マニュアル目次 */}
+        <Card className="shadow-md bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
+          <CardBody className="p-8">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-6">📚 関連ドキュメント</h2>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Card className="shadow-sm border-2 border-blue-200 dark:border-blue-800">
+                <CardBody className="p-5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <BookOpenIcon className="w-6 h-6 text-blue-500" />
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">基本ガイド</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    このページ - ツールの使い方、機能説明、実践ガイド
+                  </p>
+                </CardBody>
+              </Card>
+              
+              <a href="/manual/bpmn" className="block">
+                <Card className="shadow-sm hover:shadow-md transition-shadow border-2 border-purple-200 dark:border-purple-800">
+                  <CardBody className="p-5">
+                    <div className="flex items-center gap-3 mb-2">
+                      <DocumentTextIcon className="w-6 h-6 text-purple-500" />
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">BPMN 2.0 完全ガイド</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      BPMN 2.0の詳細解説、要素説明、ベストプラクティス
+                    </p>
+                  </CardBody>
+                </Card>
+              </a>
+            </div>
+          </CardBody>
+        </Card>
 
         {/* はじめに */}
         <Card className="shadow-md">
@@ -48,37 +80,36 @@ export default function ManualPage() {
             </div>
             
             <p className="text-lg text-gray-700 dark:text-gray-300 leading-relaxed">
-              Output Management Toolは、業務プロセスを<strong>4段階の階層</strong>で管理し、
-              <strong>グループベース</strong>で工程表・フロー図・マニュアルを整理できます。
-              <strong>BPMN 2.0</strong>標準に準拠したダイアグラム連携、Excel連携、バージョン管理を提供する
-              統合プロセス管理ツールです。
+              Output Management Toolは、業務プロセスを<strong>工程表（Process Table）</strong>で管理し、
+              <strong>BPMN 2.0準拠</strong>のビジュアルエディタでプロセスフローを可視化できる
+              統合プロセス管理ツールです。スイムレーン管理、カスタム列、データオブジェクト、
+              Excel連携など、プロジェクトに必要な機能を包括的に提供します。
             </p>
             
             <div className="grid md:grid-cols-2 gap-4">
               <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-5 rounded-lg">
                 <h3 className="text-lg font-semibold mb-3 text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                  <DocumentTextIcon className="w-5 h-5" />
-                  Phase 6 機能
+                  <SwatchIcon className="w-5 h-5" />
+                  主要機能
                 </h3>
                 <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                  <li>� <strong>グループベース管理</strong></li>
-                  <li>� <strong>階層別グループ分類</strong></li>
-                  <li>🎯 <strong>工程表・フロー図・マニュアル連携</strong></li>
-                  <li>⚡ <strong>一元管理ダッシュボード</strong></li>
+                  <li>📊 <strong>工程表管理</strong> - 3段階レベル（L1/L2/L3）で整理</li>
+                  <li>🏊 <strong>スイムレーン</strong> - 担当部門・役割ごとに工程を配置</li>
+                  <li>🎨 <strong>BPMN要素</strong> - Task/Event/Gateway 7種類のタスクタイプ</li>
+                  <li>📋 <strong>カスタム列</strong> - 工程表に独自項目を追加（最大30列）</li>
                 </ul>
               </div>
               
               <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-5 rounded-lg">
                 <h3 className="text-lg font-semibold mb-3 text-green-700 dark:text-green-300 flex items-center gap-2">
                   <ChartBarIcon className="w-5 h-5" />
-                  コア機能
+                  データ管理
                 </h3>
                 <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                  <li>📊 <strong>4段階階層管理</strong></li>
-                  <li>📁 <strong>グループベース整理</strong></li>
-                  <li>🎨 <strong>BPMNビジュアルエディタ</strong></li>
-                  <li>📋 <strong>Excel連携</strong></li>
-                  <li>💾 <strong>バージョン管理</strong></li>
+                  <li>� <strong>データオブジェクト</strong> - 入出力データを明確化</li>
+                  <li>� <strong>前工程・次工程</strong> - フロー制御を明確に</li>
+                  <li>📋 <strong>Excel連携</strong> - インポート/エクスポート対応</li>
+                  <li>💾 <strong>バージョン管理</strong> - スナップショット作成・復元</li>
                 </ul>
               </div>
             </div>
@@ -114,30 +145,27 @@ export default function ManualPage() {
               <li className="flex gap-4">
                 <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">2</span>
                 <div className="flex-1">
-                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">工程データを追加</h4>
+                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">工程表を作成</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    <strong>方法A:</strong> Excelから一括インポート<br />
-                    <strong>方法B:</strong> 階層管理画面で手動作成
+                    プロジェクト詳細画面から「工程表を作成」ボタンをクリック。
+                    レベル（L1/L2/L3）を選択して工程表を作成します。
                   </p>
-                  <Code className="text-xs">プロジェクト詳細 → 階層管理 → 工程追加</Code>
+                  <Code className="text-xs">工程表名、レベル、説明を入力 → 作成</Code>
                 </div>
               </li>
               
               <li className="flex gap-4">
                 <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">3</span>
                 <div className="flex-1">
-                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">階層構造を整理</h4>
+                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">スイムレーンを設定</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    ドラッグ&ドロップで大工程→中工程→小工程→詳細工程の4段階構造を作成
+                    工程表詳細画面の「スイムレーン」タブで担当部門や役割ごとにレーンを作成。
+                    各工程は1つのレーンに所属します。
                   </p>
                   <div className="flex gap-2 flex-wrap">
-                    <Chip size="sm" color="primary" variant="flat">大工程</Chip>
-                    <span>→</span>
-                    <Chip size="sm" color="secondary" variant="flat">中工程</Chip>
-                    <span>→</span>
-                    <Chip size="sm" color="success" variant="flat">小工程</Chip>
-                    <span>→</span>
-                    <Chip size="sm" color="warning" variant="flat">詳細工程</Chip>
+                    <Chip size="sm" color="primary" variant="flat">営業部</Chip>
+                    <Chip size="sm" color="secondary" variant="flat">開発部</Chip>
+                    <Chip size="sm" color="success" variant="flat">品質管理</Chip>
                   </div>
                 </div>
               </li>
@@ -145,22 +173,24 @@ export default function ManualPage() {
               <li className="flex gap-4">
                 <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">4</span>
                 <div className="flex-1">
-                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">BPMNダイアグラム作成（任意）</h4>
+                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">工程を追加</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    BPMN画面でビジュアルなプロセスフローを設計。工程表と自動同期されます
+                    「工程一覧」タブで「工程追加」ボタンをクリック。
+                    工程名、スイムレーン、タスクタイプ、前工程を設定します。
                   </p>
-                  <Code className="text-xs">BPMN → 要素追加 → 工程表と同期</Code>
+                  <Code className="text-xs">工程一覧 → 工程追加 → 情報入力 → 保存</Code>
                 </div>
               </li>
               
               <li className="flex gap-4">
                 <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">5</span>
                 <div className="flex-1">
-                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">バージョンを保存</h4>
+                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">BPMNフローを確認</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    重要なマイルストーンでスナップショットを作成。いつでも復元可能
+                    「BPMNフロー図」タブで作成した工程がビジュアルに表示されます。
+                    自動レイアウト機能でプロセスフローを整理できます。
                   </p>
-                  <Code className="text-xs">バージョン管理 → スナップショット作成</Code>
+                  <Code className="text-xs">BPMNフロー図 → 自動レイアウト</Code>
                 </div>
               </li>
             </ol>
@@ -229,36 +259,35 @@ export default function ManualPage() {
                 </div>
               </AccordionItem>
 
-              {/* 階層工程表 */}
+              {/* 工程表管理 */}
               <AccordionItem
-                key="hierarchy"
-                aria-label="階層工程表管理"
+                key="process-table"
+                aria-label="工程表管理"
                 title={
                   <div className="flex items-center gap-3">
                     <ChartBarIcon className="w-6 h-6 text-purple-500" />
-                    <span className="font-bold text-lg">2. 階層工程表管理</span>
+                    <span className="font-bold text-lg">2. 工程表管理</span>
                   </div>
                 }
               >
                 <div className="space-y-4 pl-9">
                   <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🏗️ 4段階階層構造</h4>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📊 工程表とは</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      <strong>工程表（Process Table）</strong>は、プロジェクト内のプロセスを管理する単位です。
+                      3段階のレベル（L1/L2/L3）で整理し、各工程表にはスイムレーン、カスタム列、
+                      データオブジェクトを設定できます。
+                    </p>
                     <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Chip size="sm" color="primary">Level 1</Chip>
-                        <span className="text-gray-600 dark:text-gray-400">大工程 - プロジェクト全体の大きな区分</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Chip size="sm" color="secondary">Level 2</Chip>
-                        <span className="text-gray-600 dark:text-gray-400">中工程 - 大工程を詳細化</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Chip size="sm" color="success">Level 3</Chip>
-                        <span className="text-gray-600 dark:text-gray-400">小工程 - 具体的なタスク群</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Chip size="sm" color="warning">Level 4</Chip>
-                        <span className="text-gray-600 dark:text-gray-400">詳細工程 - 最も細かい作業単位</span>
+                      <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded">
+                        <p className="font-semibold text-blue-700 dark:text-blue-300 mb-2">✨ 工程表の特徴:</p>
+                        <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                          <li>• <strong>3段階レベル</strong> - L1（大分類）、L2（中分類）、L3（小分類）</li>
+                          <li>• <strong>スイムレーン管理</strong> - 担当部門・役割ごとに整理</li>
+                          <li>• <strong>カスタム列</strong> - 工程表ごとに最大30列まで追加可能</li>
+                          <li>• <strong>データオブジェクト</strong> - 入出力データを明確化</li>
+                          <li>• <strong>BPMN 2.0準拠</strong> - 標準的なプロセス表現</li>
+                        </ul>
                       </div>
                     </div>
                   </div>
@@ -266,11 +295,65 @@ export default function ManualPage() {
                   <Divider />
                   
                   <div>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">➕ 工程表の作成</h4>
+                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                      <li>プロジェクト詳細画面で「工程表を作成」ボタンをクリック</li>
+                      <li>工程表名を入力（例：「受注プロセス」「製造プロセス」）</li>
+                      <li>レベルを選択（L1/L2/L3）</li>
+                      <li>説明を入力（任意）</li>
+                      <li>「作成」ボタンをクリック</li>
+                    </ol>
+                    <div className="mt-2 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-3 rounded">
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        💡 ヒント: 作成時にスイムレーンやカスタム列を同時に設定できます
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🏊 スイムレーン管理</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      <strong>スイムレーン</strong>は担当部門や役割を表します。各工程は必ず1つのレーンに所属し、
+                      BPMNフロー図でもレーンごとに視覚的に表示されます。
+                    </p>
+                    <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                      <li>• <strong>レーン作成</strong> - 工程表詳細の「スイムレーン」タブから追加</li>
+                      <li>• <strong>レーン編集</strong> - 名前と色を変更可能</li>
+                      <li>• <strong>並び替え</strong> - ドラッグ&ドロップで順序変更</li>
+                      <li>• <strong>レーン削除</strong> - 所属する工程がない場合のみ削除可能</li>
+                    </ul>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📋 カスタム列</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      工程表に独自の列を追加できます（最大30列）。
+                      担当者、工数、ステータス、期限など、プロジェクトに応じた情報を管理できます。
+                    </p>
+                    <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                      <li>• <strong>列タイプ</strong> - text, number, date, select, multiselect, checkbox, url</li>
+                      <li>• <strong>必須設定</strong> - 入力を必須にできます</li>
+                      <li>• <strong>選択肢</strong> - selectタイプでは選択肢を定義</li>
+                      <li>• <strong>並び順</strong> - orderNumで表示順序を制御</li>
+                    </ul>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
                     <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">➕ 工程の追加</h4>
                     <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>プロジェクト詳細画面から「階層管理」タブを選択</li>
+                      <li>工程表詳細画面の「工程一覧」タブを選択</li>
                       <li>「工程追加」ボタンをクリック</li>
-                      <li>工程名、説明、レベル、親工程を入力</li>
+                      <li>工程名を入力</li>
+                      <li>スイムレーンを選択（必須）</li>
+                      <li>タスクタイプを選択（userTask, serviceTask等）</li>
+                      <li>前工程を設定（任意、複数選択可能）</li>
+                      <li>カスタム列の値を入力</li>
                       <li>「保存」をクリック</li>
                     </ol>
                   </div>
@@ -278,9 +361,10 @@ export default function ManualPage() {
                   <Divider />
                   
                   <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🎯 ドラッグ&ドロップ</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      工程をドラッグして別の親工程にドロップすることで、階層構造を簡単に変更できます。
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📦 データオブジェクト</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      工程で使用される入出力データを管理します。「データオブジェクト」タブで作成し、
+                      各工程に関連付けることで、データフローを明確化できます。
                     </p>
                   </div>
                 </div>
@@ -289,45 +373,68 @@ export default function ManualPage() {
               {/* BPMN */}
               <AccordionItem
                 key="bpmn"
-                aria-label="BPMNエディタ"
+                aria-label="BPMNフロー図"
                 title={
                   <div className="flex items-center gap-3">
                     <DocumentTextIcon className="w-6 h-6 text-indigo-500" />
-                    <span className="font-bold text-lg">3. BPMNエディタ</span>
+                    <span className="font-bold text-lg">3. BPMNフロー図</span>
                   </div>
                 }
               >
                 <div className="space-y-4 pl-9">
                   <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🎨 ダイアグラム作成</h4>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>プロジェクト詳細画面から「BPMN」タブを選択</li>
-                      <li>左側のパレットから要素をドラッグ</li>
-                      <li>キャンバスに配置してプロセスフローを作成</li>
-                      <li>要素をクリックして名前や属性を編集</li>
-                      <li>自動保存されます</li>
-                    </ol>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📦 主要な要素</h4>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🎨 フロー図の表示</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      工程表詳細画面の「BPMNフロー図」タブで、登録した工程がビジュアルに表示されます。
+                      工程間の接続関係（前工程・次工程）が自動的にフロー線で表現されます。
+                    </p>
                     <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>⭕ <strong>イベント</strong> - 開始、終了、中間イベント</li>
-                      <li>📋 <strong>タスク</strong> - 作業の単位</li>
-                      <li>💎 <strong>ゲートウェイ</strong> - 分岐・統合</li>
-                      <li>➡️ <strong>シーケンスフロー</strong> - 処理の流れ</li>
+                      <li>• <strong>自動レイアウト</strong> - ELKjsによる階層的な自動配置</li>
+                      <li>• <strong>スイムレーン表示</strong> - レーンごとに色分け表示</li>
+                      <li>• <strong>タスクタイプアイコン</strong> - BPMN 2.0準拠のアイコン表示</li>
+                      <li>• <strong>ズーム/パン</strong> - マウスホイールで拡大縮小、ドラッグで移動</li>
                     </ul>
                   </div>
                   
                   <Divider />
                   
                   <div>
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📦 BPMN 2.0 要素</h4>
+                    <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">🏊 スイムレーン (Lane)</p>
+                        <p>担当部門や役割を表します。工程は必ず1つのレーンに所属します。</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">📋 タスク (Task)</p>
+                        <p>7種類のタスクタイプ: userTask（ユーザータスク）、serviceTask（サービスタスク）、
+                        manualTask（手動タスク）、scriptTask（スクリプトタスク）、
+                        businessRuleTask（ビジネスルールタスク）、sendTask（送信タスク）、receiveTask（受信タスク）</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">⭕ イベント (Event)</p>
+                        <p>startEvent（開始）、endEvent（終了）、中間イベント（timer, message, error, signal, conditional）</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">💎 ゲートウェイ (Gateway)</p>
+                        <p>exclusiveGateway（排他）、parallelGateway（並列）、inclusiveGateway（包含） - プロセスの分岐・統合</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">➡️ シーケンスフロー</p>
+                        <p>工程の前工程設定に基づいて自動的にフロー線が描画されます。条件付きフローにも対応。</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <Divider />
+                  
+                  <div>
                     <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">💾 エクスポート</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      BPMN 2.0 XML形式、SVG画像、PNGで出力可能。他のツールとの互換性があります。
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      BPMN XML形式でエクスポートできます。標準的なBPMN 2.0形式のため、
+                      Camunda、Signavio、Bizagi等の他のBPMNツールとの互換性があります。
                     </p>
+                    <Code className="text-xs">BPMNフロー図 → エクスポート → BPMN XML</Code>
                   </div>
                 </div>
               </AccordionItem>
@@ -383,180 +490,7 @@ export default function ManualPage() {
                 </div>
               </AccordionItem>
 
-              {/* グループ管理 */}
-              <AccordionItem
-                key="trinity"
-                aria-label="グループ管理"
-                title={
-                  <div className="flex items-center gap-3">
-                    <ArrowsRightLeftIcon className="w-6 h-6 text-pink-500" />
-                    <span className="font-bold text-lg">5. グループ管理 (Phase 6)</span>
-                    <Chip size="sm" color="danger" variant="flat">NEW</Chip>
-                  </div>
-                }
-              >
-                <div className="space-y-4 pl-9">
-                  <div className="bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-950 dark:to-purple-950 p-4 rounded-lg border border-pink-200 dark:border-pink-800">
-                    <h4 className="font-semibold mb-2 text-pink-700 dark:text-pink-300">� グループベース管理とは？</h4>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      工程表、フロー図、マニュアルをグループ単位で管理する機能です。
-                      階層レベル（大・中・小・詳細）ごとに整理し、関連性を明確にします。
-                    </p>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">� 工程表グループ</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      複数の工程表を階層レベルごとにグループ化して管理します。
-                    </p>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>階層管理ページから「工程表グループ管理」へ</li>
-                      <li>「グループ作成」で新規グループを作成</li>
-                      <li>階層レベルを選択（大・中・小・詳細）</li>
-                      <li>グループに工程を追加して整理</li>
-                    </ol>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">� フロー図グループ</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      BPMNダイアグラムをグループ単位で管理します。
-                    </p>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>「BPMN」タブからグループ管理へ</li>
-                      <li>階層レベルごとにフロー図グループを作成</li>
-                      <li>工程表グループと紐付けて関連性を明確化</li>
-                      <li>グループ内でフロー図を管理</li>
-                    </ol>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📄 マニュアルグループ</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      マニュアルをグループ単位で整理・管理します。
-                    </p>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>「マニュアル」タブを選択</li>
-                      <li>「グループ作成」でマニュアルグループを作成</li>
-                      <li>階層レベルと工程表グループを設定</li>
-                      <li>グループ内でマニュアルを作成・編集</li>
-                    </ol>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🎯 統合管理ビュー</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      「Trinity」タブで3要素を一元管理できます。各グループの状況を一覧で確認し、素早くアクセスできます。
-                    </p>
-                  </div>
-                </div>
-              </AccordionItem>
-
-              {/* マニュアル管理 */}
-              <AccordionItem
-                key="manual"
-                aria-label="マニュアル管理"
-                title={
-                  <div className="flex items-center gap-3">
-                    <DocumentDuplicateIcon className="w-6 h-6 text-cyan-500" />
-                    <span className="font-bold text-lg">6. マニュアル管理</span>
-                  </div>
-                }
-              >
-                <div className="space-y-4 pl-9">
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📝 マニュアル作成</h4>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>「マニュアル」タブを選択</li>
-                      <li>「新規マニュアル作成」ボタンをクリック</li>
-                      <li>タイトルと内容を入力</li>
-                      <li>リッチテキストエディタで装飾</li>
-                      <li>「保存」をクリック</li>
-                    </ol>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🤖 自動生成</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      工程表から自動的にマニュアルを生成できます：
-                    </p>
-                    <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>📋 <strong>標準テンプレート</strong> - 工程ごとの手順書</li>
-                      <li>📊 <strong>詳細版</strong> - 担当者・工数も含む</li>
-                      <li>📄 <strong>簡易版</strong> - 工程名と概要のみ</li>
-                    </ul>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">💾 エクスポート</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      マニュアルをPDF、HTML、Markdown、DOCX形式で出力できます。
-                    </p>
-                  </div>
-                </div>
-              </AccordionItem>
-
-              {/* バージョン管理 */}
-              <AccordionItem
-                key="version"
-                aria-label="バージョン管理"
-                title={
-                  <div className="flex items-center gap-3">
-                    <ClockIcon className="w-6 h-6 text-orange-500" />
-                    <span className="font-bold text-lg">7. バージョン管理</span>
-                  </div>
-                }
-              >
-                <div className="space-y-4 pl-9">
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📸 スナップショット作成</h4>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>「バージョン管理」タブを選択</li>
-                      <li>「スナップショット作成」ボタンをクリック</li>
-                      <li>バージョン名と説明を入力</li>
-                      <li>「作成」をクリック</li>
-                    </ol>
-                    <div className="mt-2 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 p-3 rounded">
-                      <p className="text-xs text-orange-700 dark:text-orange-300">
-                        💡 ヒント: 重要なマイルストーンごとに作成することをお勧めします
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">⏮️ バージョン復元</h4>
-                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <li>バージョン一覧から復元したいバージョンを選択</li>
-                      <li>「復元」ボタンをクリック</li>
-                      <li>確認ダイアログで「復元」を選択</li>
-                      <li>プロジェクトが選択したバージョンに戻ります</li>
-                    </ol>
-                  </div>
-                  
-                  <Divider />
-                  
-                  <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">🔍 差分表示</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      2つのバージョン間の変更点を視覚的に確認できます。
-                    </p>
-                  </div>
-                </div>
-              </AccordionItem>
+              
             </Accordion>
           </CardBody>
         </Card>
@@ -620,34 +554,11 @@ export default function ManualPage() {
 
               <AccordionItem
                 key="ts3"
-                aria-label="BPMNエディタが表示されない"
-                title={
-                  <div className="flex items-center gap-2">
-                    <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />
-                    <span className="font-semibold">BPMNエディタが表示されない</span>
-                  </div>
-                }
-              >
-                <div className="space-y-3 pl-7 text-sm">
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">対処法：</p>
-                    <ul className="space-y-2 text-gray-600 dark:text-gray-400">
-                      <li>✓ ページをリロード（Ctrl+R）</li>
-                      <li>✓ ブラウザのキャッシュをクリア</li>
-                      <li>✓ 別のプロジェクトで試してみる</li>
-                      <li>✓ アプリを再起動</li>
-                    </ul>
-                  </div>
-                </div>
-              </AccordionItem>
-
-              <AccordionItem
-                key="ts4"
-                aria-label="同期機能が動作しない"
+                aria-label="スイムレーンが作成できない"
                 title={
                   <div className="flex items-center gap-2">
                     <ExclamationTriangleIcon className="w-5 h-5 text-blue-500" />
-                    <span className="font-semibold">同期機能が動作しない</span>
+                    <span className="font-semibold">スイムレーンが作成できない</span>
                   </div>
                 }
               >
@@ -655,10 +566,33 @@ export default function ManualPage() {
                   <div>
                     <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">確認事項：</p>
                     <ul className="space-y-2 text-gray-600 dark:text-gray-400">
-                      <li>✓ BPMNダイアグラムと工程表の両方が作成されているか</li>
-                      <li>✓ 同期ボタンをクリックしたか</li>
-                      <li>✓ エラーメッセージが表示されていないか確認</li>
-                      <li>✓ Trinity統合ビューで同期状態を確認</li>
+                      <li>✓ 工程表詳細画面の「スイムレーン」タブを開いているか確認</li>
+                      <li>✓ スイムレーン名が入力されているか確認</li>
+                      <li>✓ 同じ名前のレーンが既に存在しないか確認</li>
+                      <li>✓ ページをリロードして再試行</li>
+                    </ul>
+                  </div>
+                </div>
+              </AccordionItem>
+
+              <AccordionItem
+                key="ts4"
+                aria-label="工程表が表示されない"
+                title={
+                  <div className="flex items-center gap-2">
+                    <ExclamationTriangleIcon className="w-5 h-5 text-purple-500" />
+                    <span className="font-semibold">工程表が表示されない</span>
+                  </div>
+                }
+              >
+                <div className="space-y-3 pl-7 text-sm">
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">対処法：</p>
+                    <ul className="space-y-2 text-gray-600 dark:text-gray-400">
+                      <li>✓ プロジェクト詳細画面で工程表が作成されているか確認</li>
+                      <li>✓ ページをリロード（F5またはCtrl+R）</li>
+                      <li>✓ アプリを再起動してみる</li>
+                      <li>✓ データベースファイルが破損していないか確認</li>
                     </ul>
                   </div>
                 </div>
@@ -678,9 +612,9 @@ export default function ManualPage() {
                   <div>
                     <p className="font-semibold text-gray-900 dark:text-gray-50 mb-1">復元方法：</p>
                     <ul className="space-y-2 text-gray-600 dark:text-gray-400">
-                      <li>✓ バージョン管理から過去のスナップショットを復元</li>
-                      <li>✓ データベースバックアップから復元（%APPDATA%\output-management-tool\data\backups）</li>
-                      <li>✓ 定期的にスナップショットを作成することを推奨</li>
+                      <li>✓ バージョン管理機能がある場合は過去のスナップショットを確認</li>
+                      <li>✓ データベースファイルのバックアップがあれば復元</li>
+                      <li>✓ 定期的にExcelエクスポートでバックアップを作成することを推奨</li>
                     </ul>
                   </div>
                 </div>
@@ -759,13 +693,20 @@ export default function ManualPage() {
 
               <AccordionItem
                 key="faq6"
-                aria-label="階層の深さに制限はありますか？"
-                title="階層の深さに制限はありますか？"
+                aria-label="工程表とは何ですか？"
+                title="工程表とは何ですか？"
               >
-                <p className="text-sm text-gray-600 dark:text-gray-400 pl-4">
-                  現在は4段階（大工程→中工程→小工程→詳細工程）に固定されています。
-                  これは業務プロセス管理のベストプラクティスに基づいています。
-                </p>
+                <div className="text-sm text-gray-600 dark:text-gray-400 pl-4 space-y-2">
+                  <p>
+                    <strong>工程表（Process Table）</strong>は、プロジェクト内のプロセスを管理する単位です。
+                    3段階のレベル（L1/L2/L3）で整理し、各工程表にスイムレーン、カスタム列、
+                    データオブジェクトを設定できます。
+                  </p>
+                  <p>
+                    各工程は<strong>スイムレーン（担当部門・役割）</strong>に所属し、
+                    前工程・次工程を設定することでフロー制御を明確にします。
+                  </p>
+                </div>
               </AccordionItem>
 
               <AccordionItem
@@ -785,13 +726,20 @@ export default function ManualPage() {
 
               <AccordionItem
                 key="faq8"
-                aria-label="マニュアル生成のテンプレートをカスタマイズできますか？"
-                title="マニュアル生成のテンプレートをカスタマイズできますか？"
+                aria-label="カスタム列とは何ですか？"
+                title="カスタム列とは何ですか？"
               >
-                <p className="text-sm text-gray-600 dark:text-gray-400 pl-4">
-                  現バージョンでは標準、詳細、簡易の3つのテンプレートから選択できます。
-                  生成後にリッチテキストエディタで自由に編集可能です。
-                </p>
+                <div className="text-sm text-gray-600 dark:text-gray-400 pl-4 space-y-2">
+                  <p>
+                    工程表に独自の項目を追加できる機能です。
+                    担当者、工数、ステータス、期限など、プロジェクトに応じた情報を管理できます。
+                  </p>
+                  <ul className="space-y-1">
+                    <li>• <strong>列タイプ</strong>: テキスト、数値、日付、選択肢、チェックボックス</li>
+                    <li>• <strong>必須設定</strong>: 入力を必須にできます</li>
+                    <li>• <strong>並び順</strong>: ドラッグ&ドロップで調整可能</li>
+                  </ul>
+                </div>
               </AccordionItem>
             </Accordion>
           </CardBody>
@@ -851,8 +799,8 @@ export default function ManualPage() {
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
               <Chip color="primary" variant="flat" size="lg">バージョン: 0.6.0</Chip>
-              <Chip color="success" variant="flat" size="lg">最終更新: 2025年10月16日</Chip>
-              <Chip color="secondary" variant="flat" size="lg">Phase 6 完了</Chip>
+              <Chip color="success" variant="flat" size="lg">最終更新: 2025年10月24日</Chip>
+              <Chip color="secondary" variant="flat" size="lg">BPMN 2.0準拠</Chip>
             </div>
             <Divider className="my-6" />
             <p className="text-sm text-gray-500 dark:text-gray-500">
@@ -864,3 +812,4 @@ export default function ManualPage() {
     </AppLayout>
   );
 }
+

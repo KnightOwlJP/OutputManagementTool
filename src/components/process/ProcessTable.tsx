@@ -18,6 +18,7 @@ import {
   Select,
   SelectItem,
   Tooltip,
+  Pagination,
 } from '@heroui/react';
 import {
   PencilIcon,
@@ -33,6 +34,7 @@ import {
   XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { Process, ProcessLevel } from '@/types/project.types';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface ProcessTableProps {
   processes: Process[];
@@ -51,12 +53,17 @@ export function ProcessTable({
   onProcessSelect,
   isLoading = false,
 }: ProcessTableProps) {
+  const { settings } = useSettings();
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<ProcessLevel | 'all'>('all');
   const [sortConfig, setSortConfig] = useState<{
     key: keyof Process | null;
     direction: 'asc' | 'desc';
   }>({ key: null, direction: 'asc' });
+  const [page, setPage] = useState(1);
+  
+  // 設定からページあたりの表示数を取得
+  const rowsPerPage = settings.ui.itemsPerPage;
 
   // レベル名を取得
   const getLevelLabel = (level: ProcessLevel): string => {
@@ -179,6 +186,14 @@ export function ProcessTable({
     return filtered;
   }, [processes, levelFilter, searchQuery, sortConfig]);
 
+  // ページネーション処理
+  const pages = Math.ceil(filteredAndSortedProcesses.length / rowsPerPage);
+  const paginatedProcesses = useMemo(() => {
+    const start = (page - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
+    return filteredAndSortedProcesses.slice(start, end);
+  }, [filteredAndSortedProcesses, page, rowsPerPage]);
+
   // ソートハンドラ
   const handleSort = (key: keyof Process) => {
     setSortConfig((prev) => ({
@@ -259,6 +274,21 @@ export function ProcessTable({
           removeWrapper
           className="min-w-full"
           isHeaderSticky
+          bottomContent={
+            pages > 1 ? (
+              <div className="flex w-full justify-center py-2">
+                <Pagination
+                  isCompact
+                  showControls
+                  showShadow
+                  color="primary"
+                  page={page}
+                  total={pages}
+                  onChange={(page) => setPage(page)}
+                />
+              </div>
+            ) : null
+          }
         >
           <TableHeader>
             <TableColumn
@@ -306,7 +336,7 @@ export function ProcessTable({
             </TableColumn>
           </TableHeader>
           <TableBody
-            items={filteredAndSortedProcesses}
+            items={paginatedProcesses}
             isLoading={isLoading}
             emptyContent={
               <div className="text-center py-8 text-gray-500">
@@ -429,6 +459,7 @@ export function ProcessTable({
       <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
         <div>
           全{processes.length}件中 {filteredAndSortedProcesses.length}件を表示
+          {pages > 1 && ` (${page}/${pages}ページ)`}
         </div>
         <div className="flex gap-4">
           <span>大工程: {processes.filter((p) => p.level === 'large').length}</span>

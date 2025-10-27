@@ -28,9 +28,10 @@ import {
   ComputerDesktopIcon,
 } from '@heroicons/react/24/outline';
 import { AppLayout } from '@/components';
+import BackupManager from '@/components/backup/BackupManager';
 import { useToast } from '@/contexts/ToastContext';
 import { useSettings } from '@/contexts/SettingsContext';
-import { AppSettings, DEFAULT_SETTINGS, ProcessLevelDefinition } from '@/types/settings.types';
+import { AppSettings, DEFAULT_SETTINGS } from '@/types/settings.types';
 
 export default function SettingsPage() {
   const { showToast } = useToast();
@@ -38,9 +39,26 @@ export default function SettingsPage() {
   const [localSettings, setLocalSettings] = useState<AppSettings>(contextSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [schedulerEnabled, setSchedulerEnabled] = useState(false);
+  const [syncSchedulerEnabled, setSyncSchedulerEnabled] = useState(false);
 
   useEffect(() => {
     setLocalSettings(contextSettings);
+    
+    // バックアップスケジューラーの状態を取得
+    window.electron.backup.getSchedulerStatus().then(result => {
+      if (result.success && result.status) {
+        setSchedulerEnabled(result.status.enabled);
+      }
+    });
+    
+    // Phase 9: 同期スケジューラーは非推奨（trinity sync機能削除）
+    // 同期スケジューラーの状態を取得
+    // window.electron.sync.getSchedulerStatus().then(result => {
+    //   if (result.success && result.status) {
+    //     setSyncSchedulerEnabled(result.status.enabled);
+    //   }
+    // });
   }, [contextSettings]);
 
   const saveSettings = async () => {
@@ -48,6 +66,22 @@ export default function SettingsPage() {
     try {
       // Contextを通じて保存（LocalStorageへの保存も含む）
       contextUpdateSettings(localSettings);
+      
+      // 自動バックアップスケジューラーを制御
+      if (localSettings.backup.autoBackupEnabled) {
+        const result = await window.electron.backup.startScheduler(
+          localSettings.backup.backupInterval,
+          localSettings.backup.maxBackups,
+          localSettings.backup.backupPath || undefined
+        );
+        if (result.success) {
+          setSchedulerEnabled(true);
+        }
+      } else {
+        await window.electron.backup.stopScheduler();
+        setSchedulerEnabled(false);
+      }
+      
       setHasChanges(false);
       showToast('success', '設定を保存しました');
     } catch (error) {
@@ -155,7 +189,14 @@ export default function SettingsPage() {
           >
             <Card className="shadow-sm mt-4">
               <CardHeader className="p-6 pb-0">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">同期設定</h2>
+                <div className="flex items-center justify-between w-full">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">同期設定</h2>
+                  {syncSchedulerEnabled && (
+                    <Chip size="sm" color="success" variant="flat">
+                      スケジューラー実行中
+                    </Chip>
+                  )}
+                </div>
               </CardHeader>
               <CardBody className="p-6 space-y-6">
                 <div className="space-y-4">
@@ -250,99 +291,211 @@ export default function SettingsPage() {
                   </p>
                 </div>
 
+                <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>⚠️ 注意:</strong> 自動同期スケジューラーはプロジェクトとBPMNが選択されている場合にのみ起動します。
+                    各プロジェクトページで個別に設定してください。
+                  </p>
+                </div>
+
                 <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    <strong>ℹ️ 注意:</strong> Phase 6では同期機能の基盤のみ実装されています。完全な自動同期機能はPhase 7以降で利用可能になります。
+                    <strong>ℹ️ 三位一体同期:</strong> Phase 6で実装完了。BPMN・工程表・マニュアルの自動連携が可能です。
                   </p>
                 </div>
               </CardBody>
             </Card>
           </Tab>
 
-          {/* 工程レベル定義 */}
+          {/* BPMN設定 */}
           <Tab
-            key="levels"
+            key="bpmn"
             title={
               <div className="flex items-center gap-2">
-                <ChartBarIcon className="w-5 h-5" />
-                <span>工程レベル</span>
+                <DocumentTextIcon className="w-5 h-5" />
+                <span>BPMN設定</span>
               </div>
             }
           >
             <Card className="shadow-sm mt-4">
               <CardHeader className="p-6 pb-0">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">工程レベル定義</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">BPMN設定</h2>
               </CardHeader>
               <CardBody className="p-6 space-y-6">
-                {Object.entries(localSettings.processLevels).map(([key, level]) => (
-                  <Card key={key} className="shadow-sm border border-gray-200 dark:border-gray-700">
-                    <CardBody className="p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-4 h-4 rounded-full" 
-                            style={{ backgroundColor: level.color }}
-                          />
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-50">
-                            {level.name}
-                          </h3>
-                          <Chip size="sm" variant="flat">
-                            {level.key}
-                          </Chip>
-                        </div>
-                        <Switch
-                          size="sm"
-                          isSelected={level.enabled}
-                          onValueChange={(value) => 
-                            updateSettings(['processLevels', key, 'enabled'], value)
-                          }
-                        />
-                      </div>
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-50">デフォルト要素設定</h3>
+                  
+                  <Select
+                    label="デフォルトタスクタイプ"
+                    selectedKeys={[localSettings.bpmn?.defaultTaskType || 'userTask']}
+                    onChange={(e) => updateSettings(['bpmn', 'defaultTaskType'], e.target.value)}
+                    labelPlacement="outside"
+                    variant="bordered"
+                  >
+                    <SelectItem key="userTask">ユーザータスク</SelectItem>
+                    <SelectItem key="serviceTask">サービスタスク</SelectItem>
+                    <SelectItem key="manualTask">手動タスク</SelectItem>
+                    <SelectItem key="scriptTask">スクリプトタスク</SelectItem>
+                    <SelectItem key="businessRuleTask">ビジネスルールタスク</SelectItem>
+                    <SelectItem key="sendTask">送信タスク</SelectItem>
+                    <SelectItem key="receiveTask">受信タスク</SelectItem>
+                  </Select>
 
-                      {level.enabled && (
-                        <>
-                          <Input
-                            label="表示名"
-                            value={level.name}
-                            onChange={(e) => 
-                              updateSettings(['processLevels', key, 'name'], e.target.value)
-                            }
-                            labelPlacement="outside"
-                            variant="bordered"
-                          />
+                  <Select
+                    label="デフォルトゲートウェイタイプ"
+                    selectedKeys={[localSettings.bpmn?.defaultGatewayType || 'exclusive']}
+                    onChange={(e) => updateSettings(['bpmn', 'defaultGatewayType'], e.target.value)}
+                    labelPlacement="outside"
+                    variant="bordered"
+                  >
+                    <SelectItem key="exclusive">排他ゲートウェイ</SelectItem>
+                    <SelectItem key="parallel">並列ゲートウェイ</SelectItem>
+                    <SelectItem key="inclusive">包含ゲートウェイ</SelectItem>
+                  </Select>
+                </div>
 
-                          <Input
-                            label="説明"
-                            value={level.description}
-                            onChange={(e) => 
-                              updateSettings(['processLevels', key, 'description'], e.target.value)
-                            }
-                            labelPlacement="outside"
-                            variant="bordered"
-                          />
+                <Divider />
 
-                          <div className="flex gap-4">
-                            <Input
-                              type="color"
-                              label="カラー"
-                              value={level.color}
-                              onChange={(e) => 
-                                updateSettings(['processLevels', key, 'color'], e.target.value)
-                              }
-                              labelPlacement="outside"
-                              variant="bordered"
-                              className="max-w-[200px]"
-                            />
-                          </div>
-                        </>
-                      )}
-                    </CardBody>
-                  </Card>
-                ))}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-50">エディタ設定</h3>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900 dark:text-gray-50">グリッドスナップ</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        要素をグリッドに吸着させる
+                      </p>
+                    </div>
+                    <Switch
+                      isSelected={localSettings.bpmn?.gridSnap ?? true}
+                      onValueChange={(value) => updateSettings(['bpmn', 'gridSnap'], value)}
+                    />
+                  </div>
 
-                <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                  <p className="text-sm text-amber-800 dark:text-amber-200">
-                    <strong>⚠️ 注意:</strong> レベルを無効にすると、そのレベルの工程は作成できなくなります。既存の工程には影響しません。
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900 dark:text-gray-50">自動レイアウト</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        要素追加時に自動的に整列
+                      </p>
+                    </div>
+                    <Switch
+                      isSelected={localSettings.bpmn?.autoLayout ?? false}
+                      onValueChange={(value) => updateSettings(['bpmn', 'autoLayout'], value)}
+                    />
+                  </div>
+
+                  <Input
+                    type="number"
+                    label="グリッドサイズ（px）"
+                    value={(localSettings.bpmn?.gridSize || 10).toString()}
+                    onChange={(e) => updateSettings(['bpmn', 'gridSize'], parseInt(e.target.value))}
+                    min={5}
+                    max={50}
+                    labelPlacement="outside"
+                    variant="bordered"
+                  />
+                </div>
+
+                <Divider />
+
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-50">ELK自動レイアウト</h3>
+                  
+                  <Select
+                    label="レイアウトアルゴリズム"
+                    selectedKeys={[localSettings.bpmn?.elkLayoutAlgorithm || 'layered']}
+                    onChange={(e) => updateSettings(['bpmn', 'elkLayoutAlgorithm'], e.target.value)}
+                    labelPlacement="outside"
+                    variant="bordered"
+                    description="BPMN要素の自動配置アルゴリズム"
+                  >
+                    <SelectItem key="layered">Layered（階層型）</SelectItem>
+                    <SelectItem key="stress">Stress（応力型）</SelectItem>
+                    <SelectItem key="mrtree">MrTree（ツリー型）</SelectItem>
+                    <SelectItem key="force">Force（力学型）</SelectItem>
+                  </Select>
+
+                  <Input
+                    type="number"
+                    label="ノード間スペース（px）"
+                    value={(localSettings.bpmn?.elkNodeSpacing || 50).toString()}
+                    onChange={(e) => updateSettings(['bpmn', 'elkNodeSpacing'], parseInt(e.target.value))}
+                    min={20}
+                    max={200}
+                    labelPlacement="outside"
+                    variant="bordered"
+                    description="BPMN要素間の水平スペース"
+                  />
+
+                  <Input
+                    type="number"
+                    label="レイヤー間スペース（px）"
+                    value={(localSettings.bpmn?.elkLayerSpacing || 100).toString()}
+                    onChange={(e) => updateSettings(['bpmn', 'elkLayerSpacing'], parseInt(e.target.value))}
+                    min={50}
+                    max={300}
+                    labelPlacement="outside"
+                    variant="bordered"
+                    description="フローの階層間の垂直スペース"
+                  />
+
+                  <Select
+                    label="エッジルーティング"
+                    selectedKeys={[localSettings.bpmn?.elkEdgeRouting || 'orthogonal']}
+                    onChange={(e) => updateSettings(['bpmn', 'elkEdgeRouting'], e.target.value)}
+                    labelPlacement="outside"
+                    variant="bordered"
+                    description="フロー線の描画スタイル"
+                  >
+                    <SelectItem key="orthogonal">直交（Orthogonal）</SelectItem>
+                    <SelectItem key="polyline">折れ線（Polyline）</SelectItem>
+                    <SelectItem key="splines">曲線（Splines）</SelectItem>
+                  </Select>
+                </div>
+
+                <Divider />
+
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-50">エクスポート設定</h3>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900 dark:text-gray-50">BPMN 2.0準拠</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        標準的なBPMN 2.0 XML形式で出力
+                      </p>
+                    </div>
+                    <Switch
+                      isSelected={localSettings.bpmn?.exportBpmn20Compliant ?? true}
+                      onValueChange={(value) => updateSettings(['bpmn', 'exportBpmn20Compliant'], value)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900 dark:text-gray-50">ダイアグラム情報を含める</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        レイアウト情報（BPMNDiagram）を含める
+                      </p>
+                    </div>
+                    <Switch
+                      isSelected={localSettings.bpmn?.includeDiagramInfo ?? true}
+                      onValueChange={(value) => updateSettings(['bpmn', 'includeDiagramInfo'], value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    <strong>✨ ELK Layout:</strong> Eclipse Layout Kernelを使用した高度な自動レイアウト機能です。
+                    アルゴリズムとパラメータを調整して最適な図形配置を実現できます。
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    <strong>ℹ️ BPMN 2.0:</strong> 標準準拠のXML出力により、Camunda、Signavio等の他のBPMNツールとの互換性があります。
                   </p>
                 </div>
               </CardBody>
@@ -534,6 +687,7 @@ export default function SettingsPage() {
                   <SelectItem key="xlsx">Excel (.xlsx)</SelectItem>
                   <SelectItem key="csv">CSV (.csv)</SelectItem>
                   <SelectItem key="json">JSON (.json)</SelectItem>
+                  <SelectItem key="bpmn">BPMN 2.0 XML (.bpmn)</SelectItem>
                   <SelectItem key="pdf">PDF (.pdf)</SelectItem>
                 </Select>
 
@@ -543,7 +697,7 @@ export default function SettingsPage() {
                   onChange={(e) => updateSettings(['export', 'filenameTemplate'], e.target.value)}
                   labelPlacement="outside"
                   variant="bordered"
-                  description="使用可能: {projectName}, {date}, {time}"
+                  description="使用可能: {projectName}, {date}, {time}, {processTableName}"
                 />
 
                 <Input
@@ -569,6 +723,12 @@ export default function SettingsPage() {
                     onValueChange={(value) => updateSettings(['export', 'includeMetadata'], value)}
                   />
                 </div>
+
+                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    <strong>ℹ️ BPMN 2.0エクスポート:</strong> 標準準拠のXML形式で出力され、他のBPMNツール（Camunda、Signavio等）との互換性があります。
+                  </p>
+                </div>
               </CardBody>
             </Card>
           </Tab>
@@ -583,66 +743,95 @@ export default function SettingsPage() {
               </div>
             }
           >
-            <Card className="shadow-sm mt-4">
-              <CardHeader className="p-6 pb-0">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">バックアップ設定</h2>
-              </CardHeader>
-              <CardBody className="p-6 space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-50">自動バックアップ</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      定期的にデータをバックアップ
+            <div className="space-y-6 mt-4">
+              {/* 自動バックアップ設定 */}
+              <Card className="shadow-sm">
+                <CardHeader className="p-6 pb-0">
+                  <div className="flex items-center justify-between w-full">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">自動バックアップ設定</h2>
+                    {schedulerEnabled && (
+                      <Chip size="sm" color="success" variant="flat">
+                        スケジューラー実行中
+                      </Chip>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardBody className="p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-50">自動バックアップ</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        定期的にデータをバックアップ
+                      </p>
+                    </div>
+                    <Switch
+                      isSelected={localSettings.backup.autoBackupEnabled}
+                      onValueChange={(value) => updateSettings(['backup', 'autoBackupEnabled'], value)}
+                    />
+                  </div>
+
+                  {localSettings.backup.autoBackupEnabled && (
+                    <>
+                      <Input
+                        type="number"
+                        label="バックアップ間隔（時間）"
+                        value={localSettings.backup.backupInterval.toString()}
+                        onChange={(e) => updateSettings(['backup', 'backupInterval'], parseInt(e.target.value))}
+                        min={1}
+                        max={168}
+                        labelPlacement="outside"
+                        variant="bordered"
+                      />
+
+                      <Input
+                        type="number"
+                        label="保持するバックアップ数"
+                        value={localSettings.backup.maxBackups.toString()}
+                        onChange={(e) => updateSettings(['backup', 'maxBackups'], parseInt(e.target.value))}
+                        min={1}
+                        max={50}
+                        labelPlacement="outside"
+                        variant="bordered"
+                      />
+
+                      <div className="space-y-2">
+                        <Input
+                          label="バックアップ先パス"
+                          value={localSettings.backup.backupPath}
+                          onChange={(e) => updateSettings(['backup', 'backupPath'], e.target.value)}
+                          labelPlacement="outside"
+                          variant="bordered"
+                          placeholder="空欄の場合はデフォルトパスを使用"
+                          endContent={
+                            <Button
+                              size="sm"
+                              variant="flat"
+                              onClick={async () => {
+                                const path = await window.electron.backup.selectDirectory();
+                                if (path) {
+                                  updateSettings(['backup', 'backupPath'], path);
+                                }
+                              }}
+                            >
+                              参照
+                            </Button>
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>ℹ️ 推奨:</strong> 重要なデータは定期的にバックアップすることをお勧めします。
                     </p>
                   </div>
-                  <Switch
-                    isSelected={localSettings.backup.autoBackupEnabled}
-                    onValueChange={(value) => updateSettings(['backup', 'autoBackupEnabled'], value)}
-                  />
-                </div>
+                </CardBody>
+              </Card>
 
-                {localSettings.backup.autoBackupEnabled && (
-                  <>
-                    <Input
-                      type="number"
-                      label="バックアップ間隔（時間）"
-                      value={localSettings.backup.backupInterval.toString()}
-                      onChange={(e) => updateSettings(['backup', 'backupInterval'], parseInt(e.target.value))}
-                      min={1}
-                      max={168}
-                      labelPlacement="outside"
-                      variant="bordered"
-                    />
-
-                    <Input
-                      type="number"
-                      label="保持するバックアップ数"
-                      value={localSettings.backup.maxBackups.toString()}
-                      onChange={(e) => updateSettings(['backup', 'maxBackups'], parseInt(e.target.value))}
-                      min={1}
-                      max={50}
-                      labelPlacement="outside"
-                      variant="bordered"
-                    />
-
-                    <Input
-                      label="バックアップ先パス"
-                      value={localSettings.backup.backupPath}
-                      onChange={(e) => updateSettings(['backup', 'backupPath'], e.target.value)}
-                      labelPlacement="outside"
-                      variant="bordered"
-                      placeholder="空欄の場合はデフォルトパスを使用"
-                    />
-                  </>
-                )}
-
-                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    <strong>ℹ️ 推奨:</strong> 重要なデータは定期的にバックアップすることをお勧めします。バックアップファイルは暗号化されて保存されます。
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
+              {/* バックアップ管理 */}
+              <BackupManager customPath={localSettings.backup.backupPath || undefined} />
+            </div>
           </Tab>
         </Tabs>
       </div>

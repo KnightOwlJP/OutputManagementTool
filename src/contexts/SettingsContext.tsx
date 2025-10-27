@@ -36,6 +36,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [settings.ui.theme]);
 
+  // アニメーション設定が変更されたらHTML要素にクラスを適用
+  useEffect(() => {
+    applyAnimationSettings(settings.ui.animationsEnabled);
+  }, [settings.ui.animationsEnabled]);
+
   const applyTheme = (theme: 'light' | 'dark' | 'system') => {
     const html = document.documentElement;
     
@@ -54,21 +59,33 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const applyAnimationSettings = (enabled: boolean) => {
+    const html = document.documentElement;
+    if (enabled) {
+      html.classList.remove('reduce-motion');
+    } else {
+      html.classList.add('reduce-motion');
+    }
+  };
+
   const loadSettings = () => {
     try {
       const savedSettings = localStorage.getItem('appSettings');
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
         setSettings(parsed);
-        // 読み込み時にもテーマを適用
+        // 読み込み時にもテーマとアニメーションを適用
         applyTheme(parsed.ui.theme);
+        applyAnimationSettings(parsed.ui.animationsEnabled);
       } else {
-        // デフォルト設定のテーマを適用
+        // デフォルト設定を適用
         applyTheme(DEFAULT_SETTINGS.ui.theme);
+        applyAnimationSettings(DEFAULT_SETTINGS.ui.animationsEnabled);
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
       applyTheme(DEFAULT_SETTINGS.ui.theme);
+      applyAnimationSettings(DEFAULT_SETTINGS.ui.animationsEnabled);
     } finally {
       setIsLoading(false);
     }

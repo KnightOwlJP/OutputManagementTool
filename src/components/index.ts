@@ -19,13 +19,10 @@ export {
 export { ProcessList, ProcessForm, type ProcessFormData } from './process';
 
 // Excel components
-export { ImportExportPanel } from './excel';
+export { ImportExportPanel, ImportExportPanelV2 } from './excel';
 
 // BPMN components
 export { BpmnEditor } from './bpmn';
-
-// Hierarchy components
-export { HierarchyTree } from './hierarchy';
 
 // Manual components
 export { ManualPreview } from './manual/ManualPreview';

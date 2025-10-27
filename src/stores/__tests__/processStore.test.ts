@@ -33,6 +33,7 @@ describe('useProcessStore', () => {
         name: 'Test Process',
         level: 'large',
         displayOrder: 1,
+        status: 'not-started',
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -54,6 +55,7 @@ describe('useProcessStore', () => {
       name: 'New Process',
       level: 'medium',
       displayOrder: 1,
+      status: 'not-started',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -75,6 +77,7 @@ describe('useProcessStore', () => {
       name: 'Initial Process',
       level: 'small',
       displayOrder: 1,
+      status: 'not-started',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -105,6 +108,7 @@ describe('useProcessStore', () => {
       name: 'Process 1',
       level: 'large',
       displayOrder: 1,
+      status: 'not-started',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -115,6 +119,7 @@ describe('useProcessStore', () => {
       name: 'Process 2',
       level: 'medium',
       displayOrder: 2,
+      status: 'not-started',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -143,6 +148,7 @@ describe('useProcessStore', () => {
       name: 'Process 1',
       level: 'detail',
       displayOrder: 1,
+      status: 'not-started',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -183,6 +189,7 @@ describe('useProcessStore', () => {
         name: 'Large Process',
         level: 'large',
         displayOrder: 1,
+        status: 'not-started',
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -192,6 +199,7 @@ describe('useProcessStore', () => {
         name: 'Medium Process',
         level: 'medium',
         displayOrder: 2,
+        status: 'not-started',
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -201,6 +209,7 @@ describe('useProcessStore', () => {
         name: 'Small Process',
         level: 'small',
         displayOrder: 3,
+        status: 'not-started',
         createdAt: new Date(),
         updatedAt: new Date(),
       },

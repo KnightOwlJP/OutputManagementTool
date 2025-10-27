@@ -6,8 +6,8 @@ export interface AppSettings {
   // 同期設定
   sync: SyncSettings;
   
-  // 工程レベル定義
-  processLevels: ProcessLevelDefinitions;
+  // BPMN設定
+  bpmn: BpmnSettings;
   
   // UI設定
   ui: UISettings;
@@ -39,31 +39,39 @@ export interface SyncSettings {
   conflictResolution: 'manual' | 'bpmn-priority' | 'process-priority';
 }
 
-export interface ProcessLevelDefinition {
-  // レベルキー
-  key: 'large' | 'medium' | 'small' | 'detail';
+export interface BpmnSettings {
+  // デフォルトタスクタイプ
+  defaultTaskType: 'userTask' | 'serviceTask' | 'manualTask' | 'scriptTask' | 'businessRuleTask' | 'sendTask' | 'receiveTask';
   
-  // 表示名
-  name: string;
+  // デフォルトゲートウェイタイプ
+  defaultGatewayType: 'exclusive' | 'parallel' | 'inclusive';
   
-  // 説明
-  description: string;
+  // グリッドスナップ
+  gridSnap: boolean;
   
-  // カラーコード
-  color: string;
+  // 自動レイアウト
+  autoLayout: boolean;
   
-  // アイコン（HeroIconsのアイコン名）
-  icon: string;
+  // グリッドサイズ（px）
+  gridSize: number;
   
-  // 有効/無効
-  enabled: boolean;
-}
-
-export interface ProcessLevelDefinitions {
-  large: ProcessLevelDefinition;
-  medium: ProcessLevelDefinition;
-  small: ProcessLevelDefinition;
-  detail: ProcessLevelDefinition;
+  // BPMN 2.0準拠エクスポート
+  exportBpmn20Compliant: boolean;
+  
+  // ダイアグラム情報を含める
+  includeDiagramInfo: boolean;
+  
+  // ELK自動レイアウト設定
+  elkLayoutAlgorithm: 'layered' | 'stress' | 'mrtree' | 'force';
+  
+  // ELK: ノード間のスペース
+  elkNodeSpacing: number;
+  
+  // ELK: レイヤー間のスペース
+  elkLayerSpacing: number;
+  
+  // ELK: エッジルーティング
+  elkEdgeRouting: 'orthogonal' | 'polyline' | 'splines';
 }
 
 export interface UISettings {
@@ -126,44 +134,23 @@ export const DEFAULT_SETTINGS: AppSettings = {
     processToManualEnabled: true,
     conflictResolution: 'manual',
   },
-  processLevels: {
-    large: {
-      key: 'large',
-      name: '大工程',
-      description: 'プロジェクト全体を大きく区切る工程',
-      color: '#3B82F6',
-      icon: 'ChartBarIcon',
-      enabled: true,
-    },
-    medium: {
-      key: 'medium',
-      name: '中工程',
-      description: '大工程を具体的な作業単位に分割',
-      color: '#10B981',
-      icon: 'ChartBarIcon',
-      enabled: true,
-    },
-    small: {
-      key: 'small',
-      name: '小工程',
-      description: '中工程をさらに細分化した工程',
-      color: '#F59E0B',
-      icon: 'ChartBarIcon',
-      enabled: true,
-    },
-    detail: {
-      key: 'detail',
-      name: '詳細工程',
-      description: '最も詳細な作業レベルの工程',
-      color: '#8B5CF6',
-      icon: 'ChartBarIcon',
-      enabled: true,
-    },
+  bpmn: {
+    defaultTaskType: 'userTask',
+    defaultGatewayType: 'exclusive',
+    gridSnap: true,
+    autoLayout: false,
+    gridSize: 10,
+    exportBpmn20Compliant: true,
+    includeDiagramInfo: true,
+    elkLayoutAlgorithm: 'layered',
+    elkNodeSpacing: 50,
+    elkLayerSpacing: 100,
+    elkEdgeRouting: 'orthogonal',
   },
   ui: {
     theme: 'system',
     language: 'ja',
-    defaultView: 'tree',
+    defaultView: 'table',
     itemsPerPage: 20,
     animationsEnabled: true,
     compactMode: false,
@@ -175,9 +162,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     dateFormat: 'YYYY-MM-DD',
   },
   backup: {
-    autoBackupEnabled: false,
+    autoBackupEnabled: true,
     backupInterval: 24,
-    maxBackups: 5,
+    maxBackups: 10,
     backupPath: '',
   },
 };

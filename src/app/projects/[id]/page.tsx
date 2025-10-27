@@ -10,13 +10,17 @@ import {
   DocumentTextIcon,
   ChartBarIcon,
   PlusIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { AppLayout, Button, Modal, SkeletonCard, SkeletonText } from '@/components';
-import { ProcessForm, ProcessFormData } from '@/components/process/ProcessForm';
+import { ProcessTableListV2 } from '@/components/processTable/ProcessTableListV2';
+import { ProcessTableFormModal, ProcessTableFormData } from '@/components/processTable/ProcessTableFormModal';
 import { useProjectStore } from '@/stores/projectStore';
 import { useProcessStore } from '@/stores/processStore';
-import { projectIPC, processIPC } from '@/lib/ipc-helpers';
+import { projectIPC, processIPC, processTableIPC } from '@/lib/ipc-helpers';
 import { Project, Process } from '@/types/project.types';
+import { ProcessTable } from '@/types/models';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -84,6 +88,7 @@ export default function ProjectDetailPage() {
 
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const { processes, setProcesses } = useProcessStore();
+  const { showToast } = useToast();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -92,6 +97,15 @@ export default function ProjectDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessFormOpen, setIsProcessFormOpen] = useState(false);
   const [reloadTrigger, setReloadTrigger] = useState(0);
+
+  // V2: ProcessTable関連
+  const [processTables, setProcessTables] = useState<ProcessTable[]>([]);
+  const [isProcessTableFormOpen, setIsProcessTableFormOpen] = useState(false);
+  const [editingProcessTable, setEditingProcessTable] = useState<ProcessTable | null>(null);
+  const [deletingProcessTable, setDeletingProcessTable] = useState<ProcessTable | null>(null);
+
+  // Phase 9: Manual関連
+  const [manuals, setManuals] = useState<any[]>([]);
 
   // プロジェクトとプロセスデータを読み込み
   useEffect(() => {
@@ -135,12 +149,20 @@ export default function ProjectDetailPage() {
     setEditName(projectData.name);
     setEditDescription(projectData.description || '');
 
-    // プロセス一覧を取得
-    const { data: processData, error: processError } = await processIPC.getByProject(projectId);
-    if (processError) {
-      console.error('[ProjectDetail] Failed to load processes:', processError);
-    } else if (processData) {
-      setProcesses(processData);
+    // V2: ProcessTable一覧を取得
+    const { data: processTableData, error: processTableError } = await processTableIPC.getByProject(projectId);
+    if (processTableError) {
+      console.error('[ProjectDetail] Failed to load process tables:', processTableError);
+      showToast('error', `工程表の読み込みに失敗しました: ${processTableError}`);
+    } else if (processTableData) {
+      setProcessTables(processTableData);
+    }
+
+    // Phase 9: マニュアル一覧を取得
+    const { manualIPC } = await import('@/lib/ipc-helpers');
+    const { data: manualData, error: manualError } = await manualIPC.getByProject(projectId);
+    if (!manualError && manualData) {
+      setManuals(manualData);
     }
 
     setIsLoading(false);
@@ -171,30 +193,53 @@ export default function ProjectDetailPage() {
     setIsSubmitting(false);
   };
 
-  // 工程作成
-  const handleCreateProcess = async (data: ProcessFormData) => {
-    try {
-      const { data: newProcess, error } = await processIPC.create({
-        projectId,
-        name: data.name,
-        level: data.level,
-        parentId: data.parentId,
-        department: data.department,
-        assignee: data.assignee,
-        documentType: data.documentType,
-        description: data.description,
-      });
-
+  // V2: ProcessTable作成/編集
+  const handleProcessTableSubmit = async (data: ProcessTableFormData) => {
+    if (editingProcessTable) {
+      // 編集
+      const { data: updated, error } = await processTableIPC.update(editingProcessTable.id, data);
       if (error) {
-        alert(`工程の作成に失敗しました: ${error}`);
-      } else if (newProcess) {
+        showToast('error', `工程表の更新に失敗しました: ${error}`);
+      } else if (updated) {
         await loadProjectData();
-        setIsProcessFormOpen(false);
-        alert('工程を作成しました');
+        setIsProcessTableFormOpen(false);
+        setEditingProcessTable(null);
+        showToast('success', '工程表を更新しました');
       }
-    } catch (err) {
-      alert(`エラーが発生しました: ${err}`);
+    } else {
+      // 新規作成
+      const { data: created, error } = await processTableIPC.create({
+        projectId,
+        ...data,
+      });
+      if (error) {
+        showToast('error', `工程表の作成に失敗しました: ${error}`);
+      } else if (created) {
+        await loadProjectData();
+        setIsProcessTableFormOpen(false);
+        showToast('success', '工程表を作成しました');
+      }
     }
+  };
+
+  // V2: ProcessTable削除
+  const handleDeleteProcessTable = async (table: ProcessTable) => {
+    if (!confirm(`工程表「${table.name}」を削除しますか？\n\n※関連するSwimlane、Step、Process、BPMN、Manualも削除されます。`)) {
+      return;
+    }
+
+    const { error } = await processTableIPC.delete(table.id);
+    if (error) {
+      showToast('error', `工程表の削除に失敗しました: ${error}`);
+    } else {
+      await loadProjectData();
+      showToast('success', '工程表を削除しました');
+    }
+  };
+
+  // V2: ProcessTable表示（詳細ページへ遷移）
+  const handleViewProcessTable = (table: ProcessTable) => {
+    router.push(`/projects/${projectId}/process-tables/${table.id}/`);
   };
 
   // 工程レベル別の集計
@@ -203,6 +248,14 @@ export default function ProjectDetailPage() {
     medium: processes.filter(p => p.level === 'medium').length,
     small: processes.filter(p => p.level === 'small').length,
     detail: processes.filter(p => p.level === 'detail').length,
+    detailTables: processes.filter(p => p.detailTableId != null).length, // Phase 8: 詳細表の数
+    total: processes.length,
+  };
+
+  const projectStats = {
+    processTables: processTables.length,
+    processes: processes.length,
+    manuals: manuals.length,
   };
 
   if (isLoading) {
@@ -284,15 +337,6 @@ export default function ProjectDetailPage() {
             >
               編集
             </Button>
-            <Button
-              color="primary"
-              size="md"
-              className="font-semibold shadow-md hover:shadow-lg transition-shadow whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
-              startContent={<PlusIcon className="w-5 h-5" />}
-              onPress={() => setIsProcessFormOpen(true)}
-            >
-              工程を追加
-            </Button>
           </div>
         </div>
 
@@ -307,86 +351,73 @@ export default function ProjectDetailPage() {
           </Card>
         )}
 
-        {/* 統計情報 */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 統計情報 - コンパクト版 */}
+        <div className="grid grid-cols-3 gap-3">
           <Card className="shadow-sm">
-            <CardBody className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">大工程</p>
-                  <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-50">{processStats.large}</p>
+            <CardBody className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="bg-blue-500 bg-opacity-10 p-2 rounded">
+                  <FolderIcon className="w-4 h-4 text-blue-500" />
                 </div>
-                <div className="bg-blue-500 bg-opacity-10 p-2 rounded-lg">
-                  <ChartBarIcon className="w-6 h-6 text-blue-500" />
+                <div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">工程表</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-gray-50">
+                    {projectStats.processTables}
+                  </p>
                 </div>
               </div>
             </CardBody>
           </Card>
           <Card className="shadow-sm">
-            <CardBody className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">中工程</p>
-                  <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-50">{processStats.medium}</p>
+            <CardBody className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="bg-green-500 bg-opacity-10 p-2 rounded">
+                  <ChartBarIcon className="w-4 h-4 text-green-500" />
                 </div>
-                <div className="bg-green-500 bg-opacity-10 p-2 rounded-lg">
-                  <ChartBarIcon className="w-6 h-6 text-green-500" />
+                <div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">工程</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-gray-50">
+                    {projectStats.processes}
+                  </p>
                 </div>
               </div>
             </CardBody>
           </Card>
           <Card className="shadow-sm">
-            <CardBody className="p-4">
-              <div className="flex items-center justify-between">
+            <CardBody className="p-3">
+              <div className="flex items-center gap-2">
+                <div className="bg-purple-500 bg-opacity-10 p-2 rounded">
+                  <DocumentTextIcon className="w-4 h-4 text-purple-500" />
+                </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">小工程</p>
-                  <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-50">{processStats.small}</p>
-                </div>
-                <div className="bg-purple-500 bg-opacity-10 p-2 rounded-lg">
-                  <ChartBarIcon className="w-6 h-6 text-purple-500" />
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-          <Card className="shadow-sm">
-            <CardBody className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">詳細工程</p>
-                  <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-50">{processStats.detail}</p>
-                </div>
-                <div className="bg-orange-500 bg-opacity-10 p-2 rounded-lg">
-                  <ChartBarIcon className="w-6 h-6 text-orange-500" />
+                  <p className="text-xs text-gray-600 dark:text-gray-400">マニュアル</p>
+                  <p className="text-lg font-bold text-gray-900 dark:text-gray-50">
+                    {projectStats.manuals}
+                  </p>
                 </div>
               </div>
             </CardBody>
           </Card>
         </div>
 
+        {/* V2: ProcessTable一覧 */}
+        <ProcessTableListV2
+          projectId={projectId}
+          processTables={processTables}
+          onCreateTable={() => {
+            setEditingProcessTable(null);
+            setIsProcessTableFormOpen(true);
+          }}
+          onEditTable={(table) => {
+            setEditingProcessTable(table);
+            setIsProcessTableFormOpen(true);
+          }}
+          onDeleteTable={handleDeleteProcessTable}
+          onViewTable={handleViewProcessTable}
+        />
+
         {/* クイックアクション */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <button
-            onClick={() => router.push(`/projects/${projectId}/hierarchy/`)}
-            className="flex flex-col items-start p-5 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-all shadow-sm"
-          >
-            <div className="bg-blue-500 bg-opacity-10 p-2 rounded-lg mb-3">
-              <ChartBarIcon className="w-6 h-6 text-blue-500" />
-            </div>
-            <h3 className="font-semibold text-gray-900 dark:text-gray-50 mb-1">階層管理</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">4段階の階層を構築</p>
-          </button>
-
-          <button
-            onClick={() => router.push(`/projects/${projectId}/bpmn/`)}
-            className="flex flex-col items-start p-5 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950 rounded-lg transition-all shadow-sm"
-          >
-            <div className="bg-purple-500 bg-opacity-10 p-2 rounded-lg mb-3">
-              <DocumentTextIcon className="w-6 h-6 text-purple-500" />
-            </div>
-            <h3 className="font-semibold text-gray-900 dark:text-gray-50 mb-1">BPMNエディタ</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">プロセスフローを編集</p>
-          </button>
-
           <button
             onClick={() => router.push(`/projects/${projectId}/manuals/`)}
             className="flex flex-col items-start p-5 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg transition-all shadow-sm"
@@ -409,27 +440,6 @@ export default function ProjectDetailPage() {
             <p className="text-sm text-gray-600 dark:text-gray-400">スナップショットを管理</p>
           </button>
         </div>
-
-        {/* 統合管理バナー */}
-        <button
-          onClick={() => router.push(`/projects/${projectId}/trinity/`)}
-          className="w-full flex items-center justify-between p-6 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 rounded-lg transition-all shadow-md hover:shadow-lg"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-            </div>
-            <div className="text-left">
-              <h3 className="text-xl font-bold text-white mb-1">統合管理ダッシュボード</h3>
-              <p className="text-sm text-purple-100">工程表・フロー図・マニュアルを一元管理</p>
-            </div>
-          </div>
-          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
 
       </div>
 
@@ -478,13 +488,16 @@ export default function ProjectDetailPage() {
         </div>
       </Modal>
 
-      {/* 工程作成モーダル */}
-      <ProcessForm
-        isOpen={isProcessFormOpen}
-        onClose={() => setIsProcessFormOpen(false)}
-        onSubmit={handleCreateProcess}
+      {/* V2: ProcessTable作成/編集モーダル */}
+      <ProcessTableFormModal
+        isOpen={isProcessTableFormOpen}
+        onClose={() => {
+          setIsProcessTableFormOpen(false);
+          setEditingProcessTable(null);
+        }}
+        onSubmit={handleProcessTableSubmit}
+        editData={editingProcessTable}
         projectId={projectId}
-        defaultLevel="large"
       />
     </AppLayout>
   );

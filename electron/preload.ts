@@ -1,6 +1,28 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// Type-safe IPC API
+// V2: Type definitions for IPC API
+// Note: Full types are defined in ../src/types/phase9.types.ts
+type CreateProcessTableDto = any;
+type UpdateProcessTableDto = any;
+type CreateProcessDto = any;
+type UpdateProcessDto = any;
+type CreateSwimlaneDto = any;
+type UpdateSwimlaneDto = any;
+type ProcessTable = any;
+type Process = any;
+type Swimlane = any;
+type CustomColumn = any;
+type DataObject = any;
+type BpmnDiagram = any;
+type Manual = any;
+type ManualSection = any;
+type CreateProcessTableResult = any;
+type CreateProcessResult = any;
+type UpdateProcessResult = any;
+type DeleteProcessResult = any;
+type SyncResult = any;
+
+// V2: Type-safe IPC API
 const api = {
   // プロジェクト操作
   project: {
@@ -18,53 +40,98 @@ const api = {
     saveExcel: (data: any) => ipcRenderer.invoke('file:saveExcel', data),
   },
 
-  // 工程表（ProcessTable）操作
+  // V2: 工程表操作（新規）
   processTable: {
-    create: (data: any) => ipcRenderer.invoke('processTable:create', data),
-    getByProject: (projectId: string) => ipcRenderer.invoke('processTable:getByProject', projectId),
-    getById: (id: string) => ipcRenderer.invoke('processTable:getById', id),
-    update: (id: string, data: any) => ipcRenderer.invoke('processTable:update', id, data),
-    delete: (id: string) => ipcRenderer.invoke('processTable:delete', id),
-    reorder: (id: string, newOrder: number) => ipcRenderer.invoke('processTable:reorder', id, newOrder),
+    create: (data: CreateProcessTableDto): Promise<CreateProcessTableResult> => 
+      ipcRenderer.invoke('processTable:create', data),
+    getByProject: (projectId: string): Promise<ProcessTable[]> => 
+      ipcRenderer.invoke('processTable:getByProject', projectId),
+    getById: (processTableId: string): Promise<ProcessTable | null> => 
+      ipcRenderer.invoke('processTable:getById', processTableId),
+    update: (processTableId: string, data: UpdateProcessTableDto): Promise<ProcessTable> => 
+      ipcRenderer.invoke('processTable:update', processTableId, data),
+    delete: (processTableId: string): Promise<DeleteProcessResult> => 
+      ipcRenderer.invoke('processTable:delete', processTableId),
+    
+    // スイムレーン管理
+    createSwimlane: (processTableId: string, data: CreateSwimlaneDto): Promise<Swimlane> => 
+      ipcRenderer.invoke('processTable:createSwimlane', processTableId, data),
+    getSwimlanes: (processTableId: string): Promise<Swimlane[]> => 
+      ipcRenderer.invoke('processTable:getSwimlanes', processTableId),
+    updateSwimlane: (swimlaneId: string, data: UpdateSwimlaneDto): Promise<Swimlane> => 
+      ipcRenderer.invoke('processTable:updateSwimlane', swimlaneId, data),
+    deleteSwimlane: (swimlaneId: string): Promise<void> => 
+      ipcRenderer.invoke('processTable:deleteSwimlane', swimlaneId),
+    reorderSwimlanes: (processTableId: string, swimlaneIds: string[]): Promise<void> => 
+      ipcRenderer.invoke('processTable:reorderSwimlanes', processTableId, swimlaneIds),
+    
+    // カスタム列管理
+    createCustomColumn: (processTableId: string, data: any): Promise<CustomColumn> => 
+      ipcRenderer.invoke('processTable:createCustomColumn', processTableId, data),
+    getCustomColumns: (processTableId: string): Promise<CustomColumn[]> => 
+      ipcRenderer.invoke('processTable:getCustomColumns', processTableId),
+    updateCustomColumn: (columnId: string, data: any): Promise<CustomColumn> => 
+      ipcRenderer.invoke('processTable:updateCustomColumn', columnId, data),
+    deleteCustomColumn: (columnId: string): Promise<void> => 
+      ipcRenderer.invoke('processTable:deleteCustomColumn', columnId),
+    reorderCustomColumns: (processTableId: string, columnIds: string[]): Promise<void> => 
+      ipcRenderer.invoke('processTable:reorderCustomColumns', processTableId, columnIds),
   },
 
-  // フロー図グループ（BpmnDiagramTable）操作
-  bpmnDiagramTable: {
-    create: (data: any) => ipcRenderer.invoke('bpmnDiagramTable:create', data),
-    getByProject: (projectId: string) => ipcRenderer.invoke('bpmnDiagramTable:getByProject', projectId),
-    getById: (id: string) => ipcRenderer.invoke('bpmnDiagramTable:getById', id),
-    update: (data: any) => ipcRenderer.invoke('bpmnDiagramTable:update', data),
-    delete: (id: string) => ipcRenderer.invoke('bpmnDiagramTable:delete', id),
-    reorder: (data: any) => ipcRenderer.invoke('bpmnDiagramTable:reorder', data),
-  },
-
-  // マニュアルグループ（ManualTable）操作
-  manualTable: {
-    create: (data: any) => ipcRenderer.invoke('manualTable:create', data),
-    getByProject: (projectId: string) => ipcRenderer.invoke('manualTable:getByProject', projectId),
-    getById: (id: string) => ipcRenderer.invoke('manualTable:getById', id),
-    update: (data: any) => ipcRenderer.invoke('manualTable:update', data),
-    delete: (id: string) => ipcRenderer.invoke('manualTable:delete', id),
-    reorder: (data: any) => ipcRenderer.invoke('manualTable:reorder', data),
-  },
-
-  // 工程操作
+  // V2: 工程操作（BPMN 2.0完全統合）
   process: {
-    create: (data: any) => ipcRenderer.invoke('process:create', data),
-    getByProject: (projectId: string) => ipcRenderer.invoke('process:getByProject', projectId),
-    getById: (processId: string) => ipcRenderer.invoke('process:getById', processId),
-    update: (processId: string, data: any) => ipcRenderer.invoke('process:update', processId, data),
-    delete: (processId: string) => ipcRenderer.invoke('process:delete', processId),
+    create: (data: CreateProcessDto): Promise<CreateProcessResult> => 
+      ipcRenderer.invoke('process:create', data),
+    getByProcessTable: (processTableId: string): Promise<Process[]> => 
+      ipcRenderer.invoke('process:getByProcessTable', processTableId),
+    getById: (processId: string): Promise<Process | null> => 
+      ipcRenderer.invoke('process:getById', processId),
+    update: (processId: string, data: UpdateProcessDto): Promise<UpdateProcessResult> => 
+      ipcRenderer.invoke('process:update', processId, data),
+    delete: (processId: string): Promise<DeleteProcessResult> => 
+      ipcRenderer.invoke('process:delete', processId),
+    reorder: (processId: string, newDisplayOrder: number): Promise<void> => 
+      ipcRenderer.invoke('process:reorder', processId, newDisplayOrder),
+    
+    // BPMN関連操作
+    updateBeforeProcessIds: (processId: string, beforeProcessIds: string[]): Promise<Process> => 
+      ipcRenderer.invoke('process:updateBeforeProcessIds', processId, beforeProcessIds),
+    calculateNextProcessIds: (processTableId: string): Promise<void> => 
+      ipcRenderer.invoke('process:calculateNextProcessIds', processTableId),
+    
+    // カスタム列値操作
+    setCustomValue: (processId: string, columnName: string, value: any): Promise<Process> => 
+      ipcRenderer.invoke('process:setCustomValue', processId, columnName, value),
+    getCustomValue: (processId: string, columnName: string): Promise<any> => 
+      ipcRenderer.invoke('process:getCustomValue', processId, columnName),
   },
 
-  // BPMN操作
-  bpmn: {
-    create: (data: any) => ipcRenderer.invoke('bpmn:create', data),
-    getByProject: (projectId: string) => ipcRenderer.invoke('bpmn:getByProject', projectId),
-    getById: (bpmnId: string) => ipcRenderer.invoke('bpmn:getById', bpmnId),
-    update: (bpmnId: string, data: any) => ipcRenderer.invoke('bpmn:update', bpmnId, data),
-    delete: (bpmnId: string) => ipcRenderer.invoke('bpmn:delete', bpmnId),
-    export: (bpmnId: string, format: string) => ipcRenderer.invoke('bpmn:export', bpmnId, format),
+  // Phase 9: BPMNフロー図管理（工程表から自動生成、読み取り専用）
+  bpmnDiagramTable: {
+    getByProject: (projectId: string): Promise<BpmnDiagram[]> => 
+      ipcRenderer.invoke('bpmnDiagramTable:getByProject', projectId),
+    getById: (bpmnId: string): Promise<BpmnDiagram | null> => 
+      ipcRenderer.invoke('bpmnDiagramTable:getById', bpmnId),
+    getByProcessTable: (processTableId: string): Promise<BpmnDiagram | null> => 
+      ipcRenderer.invoke('bpmnDiagramTable:getByProcessTable', processTableId),
+    update: (bpmnId: string, data: any): Promise<BpmnDiagram> => 
+      ipcRenderer.invoke('bpmnDiagramTable:update', bpmnId, data),
+    delete: (bpmnId: string): Promise<void> => 
+      ipcRenderer.invoke('bpmnDiagramTable:delete', bpmnId),
+  },
+
+  // Phase 9: マニュアル管理（工程表から自動生成、読み取り専用）
+  manualTable: {
+    getByProject: (projectId: string): Promise<Manual[]> => 
+      ipcRenderer.invoke('manualTable:getByProject', projectId),
+    getById: (manualId: string): Promise<Manual | null> => 
+      ipcRenderer.invoke('manualTable:getById', manualId),
+    getByProcessTable: (processTableId: string): Promise<Manual | null> => 
+      ipcRenderer.invoke('manualTable:getByProcessTable', processTableId),
+    update: (manualId: string, data: any): Promise<Manual> => 
+      ipcRenderer.invoke('manualTable:update', manualId, data),
+    delete: (manualId: string): Promise<void> => 
+      ipcRenderer.invoke('manualTable:delete', manualId),
   },
 
   // バージョン管理
@@ -76,40 +143,27 @@ const api = {
     delete: (versionId: string) => ipcRenderer.invoke('version:delete', versionId),
   },
 
-  // BPMN ⇔ 工程表 同期 (Phase 6.1.2)
-  sync: {
-    bpmnToProcesses: (projectId: string, bpmnXml: string, options?: any) => 
-      ipcRenderer.invoke('sync:bpmnToProcesses', projectId, bpmnXml, options),
-    processesToBpmn: (projectId: string, bpmnId: string, options?: any) => 
-      ipcRenderer.invoke('sync:processesToBpmn', projectId, bpmnId, options),
-    bidirectional: (projectId: string, bpmnId: string, bpmnXml: string, options?: any) => 
-      ipcRenderer.invoke('sync:bidirectional', projectId, bpmnId, bpmnXml, options),
-    getProcessByBpmnElementId: (bpmnElementId: string) => 
-      ipcRenderer.invoke('sync:getProcessByBpmnElementId', bpmnElementId),
-    resolveConflict: (conflict: any, resolution: 'use-bpmn' | 'use-process' | 'merge') => 
-      ipcRenderer.invoke('sync:resolveConflict', conflict, resolution),
-    startWatch: (projectId: string) => 
-      ipcRenderer.invoke('sync:startWatch', projectId),
-    stopWatch: () => 
-      ipcRenderer.invoke('sync:stopWatch'),
-  },
-
-  // マニュアル管理 (Phase 6.2.3)
-  manual: {
-    create: (data: any) => 
-      ipcRenderer.invoke('manual:create', data),
-    getByProject: (projectId: string) => 
-      ipcRenderer.invoke('manual:getByProject', projectId),
-    getById: (manualId: string) => 
-      ipcRenderer.invoke('manual:getById', manualId),
-    update: (manualId: string, data: any) => 
-      ipcRenderer.invoke('manual:update', manualId, data),
-    delete: (manualId: string) => 
-      ipcRenderer.invoke('manual:delete', manualId),
-    generateFromProcesses: (data: any) => 
-      ipcRenderer.invoke('manual:generateFromProcesses', data),
-    export: (manualId: string, format: 'pdf' | 'html' | 'markdown' | 'docx') => 
-      ipcRenderer.invoke('manual:export', manualId, format),
+  // バックアップ管理
+  backup: {
+    create: (customPath?: string, isAutomatic?: boolean) => 
+      ipcRenderer.invoke('backup:create', customPath, isAutomatic),
+    list: (customPath?: string) => 
+      ipcRenderer.invoke('backup:list', customPath),
+    restore: (backupPath: string) => 
+      ipcRenderer.invoke('backup:restore', backupPath),
+    delete: (backupPath: string) => 
+      ipcRenderer.invoke('backup:delete', backupPath),
+    cleanup: (maxBackups: number, customPath?: string) => 
+      ipcRenderer.invoke('backup:cleanup', maxBackups, customPath),
+    selectDirectory: () => 
+      ipcRenderer.invoke('backup:selectDirectory'),
+    // スケジューラー
+    startScheduler: (intervalHours: number, maxBackups: number, customPath?: string) =>
+      ipcRenderer.invoke('backup-scheduler:start', intervalHours, maxBackups, customPath),
+    stopScheduler: () =>
+      ipcRenderer.invoke('backup-scheduler:stop'),
+    getSchedulerStatus: () =>
+      ipcRenderer.invoke('backup-scheduler:status'),
   },
 
   // システム情報
