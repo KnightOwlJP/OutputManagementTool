@@ -36,7 +36,7 @@ export default function ManualPage() {
         </div>
 
         {/* マニュアル目次 */}
-        <Card className="shadow-md bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
+        <Card className="shadow-md bg-linear-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
           <CardBody className="p-8">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-6">📚 関連ドキュメント</h2>
             <div className="grid md:grid-cols-2 gap-4">
@@ -132,7 +132,7 @@ export default function ManualPage() {
             
             <ol className="space-y-5">
               <li className="flex gap-4">
-                <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">1</span>
+                <span className="shrink-0 w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">1</span>
                 <div className="flex-1">
                   <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">プロジェクトを作成</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -143,7 +143,7 @@ export default function ManualPage() {
               </li>
               
               <li className="flex gap-4">
-                <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">2</span>
+                <span className="shrink-0 w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">2</span>
                 <div className="flex-1">
                   <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">工程表を作成</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -155,7 +155,7 @@ export default function ManualPage() {
               </li>
               
               <li className="flex gap-4">
-                <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">3</span>
+                <span className="shrink-0 w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">3</span>
                 <div className="flex-1">
                   <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">スイムレーンを設定</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -171,7 +171,7 @@ export default function ManualPage() {
               </li>
               
               <li className="flex gap-4">
-                <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">4</span>
+                <span className="shrink-0 w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">4</span>
                 <div className="flex-1">
                   <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">工程を追加</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -183,7 +183,7 @@ export default function ManualPage() {
               </li>
               
               <li className="flex gap-4">
-                <span className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">5</span>
+                <span className="shrink-0 w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">5</span>
                 <div className="flex-1">
                   <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">BPMNフローを確認</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -195,7 +195,7 @@ export default function ManualPage() {
               </li>
             </ol>
             
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 border border-green-200 dark:border-green-800 p-4 rounded-lg">
+            <div className="bg-linear-to-r from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 border border-green-200 dark:border-green-800 p-4 rounded-lg">
               <p className="text-sm font-semibold text-green-700 dark:text-green-300">
                 ✨ これで基本的な使い方は完了です！以下で各機能の詳細を確認してください。
               </p>
@@ -746,7 +746,7 @@ export default function ManualPage() {
         </Card>
 
         {/* キーボードショートカット */}
-        <Card className="shadow-md bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900">
+        <Card className="shadow-md bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900">
           <CardHeader className="p-6 pb-0">
             <div className="flex items-center gap-3">
               <CommandLineIcon className="w-8 h-8 text-purple-500" />
@@ -791,7 +791,7 @@ export default function ManualPage() {
         </Card>
 
         {/* サポート情報 */}
-        <Card className="shadow-md bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
+        <Card className="shadow-md bg-linear-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
           <CardBody className="p-8 text-center">
             <h3 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-50">さらにサポートが必要ですか？</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">

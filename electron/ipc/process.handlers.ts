@@ -221,6 +221,14 @@ export function registerProcessHandlers(): void {
       const created = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
 
       logger.info('Process', `Process created: ${processId}`);
+
+      // 工程表 → BPMN 同期
+      try {
+        await syncProcessTableToBpmn(data.processTableId);
+      } catch (syncErr) {
+        logger.warn('Process', 'Failed to sync BPMN after create', syncErr as Error);
+      }
+
       return {
         process: rowToProcess(created),
         nextProcessIdsUpdated: true,
@@ -357,15 +365,30 @@ export function registerProcessHandlers(): void {
 
       // beforeProcessIdsが更新された場合、nextProcessIdsを再計算
       let nextProcessIdsUpdated = false;
+      let processTableIdForSync: string | undefined;
       if (data.beforeProcessIds !== undefined) {
         const process = db.prepare('SELECT process_table_id FROM processes WHERE id = ?').get(processId) as { process_table_id: string };
         calculateNextProcessIds(db, process.process_table_id);
         nextProcessIdsUpdated = true;
+        processTableIdForSync = process.process_table_id;
+      } else {
+        const process = db.prepare('SELECT process_table_id FROM processes WHERE id = ?').get(processId) as { process_table_id: string };
+        processTableIdForSync = process?.process_table_id;
       }
 
       const updated = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
 
       logger.info('Process', `Process updated: ${processId}`);
+
+      // 工程表 → BPMN 同期
+      if (processTableIdForSync) {
+        try {
+          await syncProcessTableToBpmn(processTableIdForSync);
+        } catch (syncErr) {
+          logger.warn('Process', 'Failed to sync BPMN after update', syncErr as Error);
+        }
+      }
+
       return {
         process: rowToProcess(updated),
         nextProcessIdsUpdated,
@@ -393,6 +416,13 @@ export function registerProcessHandlers(): void {
 
       // nextProcessIdsを再計算
       calculateNextProcessIds(db, process.process_table_id);
+
+      // 工程表 → BPMN 同期
+      try {
+        await syncProcessTableToBpmn(process.process_table_id);
+      } catch (syncErr) {
+        logger.warn('Process', 'Failed to sync BPMN after delete', syncErr as Error);
+      }
 
       logger.info('Process', `Process deleted: ${processId}`);
       return {
@@ -424,6 +454,14 @@ export function registerProcessHandlers(): void {
       const updated = db.prepare('SELECT * FROM processes WHERE id = ?').get(processId);
 
       logger.info('Process', `beforeProcessIds updated: ${processId}`);
+
+      // 工程表 → BPMN 同期
+      try {
+        await syncProcessTableToBpmn(process.process_table_id);
+      } catch (syncErr) {
+        logger.warn('Process', 'Failed to sync BPMN after updateBeforeProcessIds', syncErr as Error);
+      }
+
       return rowToProcess(updated);
     } catch (error) {
       logger.error('Process', 'Error updating beforeProcessIds', error as Error);
@@ -514,6 +552,16 @@ export function registerProcessHandlers(): void {
       `).run(newDisplayOrder, now, processId);
 
       logger.info('Process', `Process reordered: ${processId} -> order ${newDisplayOrder}`);
+
+      // 工程表 → BPMN 同期
+      const proc = db.prepare('SELECT process_table_id FROM processes WHERE id = ?').get(processId) as { process_table_id: string } | undefined;
+      if (proc?.process_table_id) {
+        try {
+          await syncProcessTableToBpmn(proc.process_table_id);
+        } catch (syncErr) {
+          logger.warn('Process', 'Failed to sync BPMN after reorder', syncErr as Error);
+        }
+      }
     } catch (error) {
       logger.error('Process', 'Error reordering process', error as Error);
       throw error;
@@ -521,5 +569,121 @@ export function registerProcessHandlers(): void {
   });
 
   logger.info('Process', 'Process handlers registered (V2)');
+}
+
+// ==========================================
+// ヘルパー: 工程表 → BPMN 同期
+// ==========================================
+async function syncProcessTableToBpmn(processTableId: string): Promise<void> {
+  const db = getDatabase();
+  const now = Date.now();
+
+  // 工程表データを取得
+  const processTable = db.prepare(`
+    SELECT * FROM process_tables WHERE id = ?
+  `).get(processTableId) as any;
+
+  if (!processTable) {
+    logger.warn('Process', `ProcessTable not found for BPMN sync: ${processTableId}`);
+    return;
+  }
+
+  // 工程データを取得
+  const processes = db.prepare(`
+    SELECT * FROM processes WHERE process_table_id = ? ORDER BY display_order
+  `).all(processTableId) as any[];
+
+  // スイムレーンデータを取得
+  const swimlanes = db.prepare(`
+    SELECT * FROM process_table_swimlanes WHERE process_table_id = ? ORDER BY order_num
+  `).all(processTableId) as any[];
+
+  // BPMN XML生成
+  const path = require('path');
+  const bpmnExporterPath = path.join(__dirname, '../../src/lib/bpmn-xml-exporter');
+  const { exportProcessTableToBpmnXml } = require(bpmnExporterPath);
+
+  const result = await exportProcessTableToBpmnXml({
+    processTable: {
+      id: processTable.id,
+      projectId: processTable.project_id,
+      name: processTable.name,
+      level: processTable.level,
+      description: processTable.description,
+      displayOrder: processTable.display_order,
+      createdAt: new Date(processTable.created_at),
+      updatedAt: new Date(processTable.updated_at),
+    },
+    processes: processes.map((p: any) => ({
+      id: p.id,
+      processTableId: p.process_table_id,
+      laneId: p.lane_id,
+      name: p.name,
+      bpmnElement: (p.bpmn_element as 'task' | 'event' | 'gateway') || 'task',
+      taskType: p.task_type || 'userTask',
+      beforeProcessIds: p.before_process_ids ? JSON.parse(p.before_process_ids) : [],
+      nextProcessIds: p.next_process_ids ? JSON.parse(p.next_process_ids) : [],
+      gatewayType: p.gateway_type || undefined,
+      conditionalFlows: p.conditional_flows ? JSON.parse(p.conditional_flows) : undefined,
+      eventType: p.event_type || undefined,
+      intermediateEventType: p.intermediate_event_type || undefined,
+      eventDetails: p.event_details || undefined,
+      documentation: p.documentation || undefined,
+      customColumns: p.custom_columns ? JSON.parse(p.custom_columns) : undefined,
+      displayOrder: p.display_order,
+      createdAt: new Date(p.created_at),
+      updatedAt: new Date(p.updated_at),
+    })),
+    swimlanes: swimlanes.map((s: any) => ({
+      id: s.id,
+      processTableId: s.process_table_id,
+      name: s.name,
+      color: s.color,
+      order: s.order_num,
+      createdAt: new Date(s.created_at),
+      updatedAt: new Date(s.updated_at),
+    })),
+    autoLayout: true,
+  });
+
+  const bpmnXml = result.xml;
+
+  // sync_state更新
+  const currentState = db.prepare(`
+    SELECT version FROM bpmn_sync_state WHERE process_table_id = ?
+  `).get(processTableId) as { version: number } | undefined;
+
+  const newVersion = (currentState?.version || 0) + 1;
+
+  if (currentState) {
+    db.prepare(`
+      UPDATE bpmn_sync_state
+      SET bpmn_xml = ?, last_synced_at = ?, last_modified_by = ?, version = ?, updated_at = ?
+      WHERE process_table_id = ?
+    `).run(bpmnXml, now, 'process', newVersion, now, processTableId);
+  } else {
+    db.prepare(`
+      INSERT INTO bpmn_sync_state (
+        id, process_table_id, bpmn_xml, last_synced_at,
+        last_modified_by, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      uuidv4(),
+      processTableId,
+      bpmnXml,
+      now,
+      'process',
+      newVersion,
+      now,
+      now
+    );
+  }
+
+  logger.info('Process', 'ProcessTable → BPMN sync done (internal)', {
+    processTableId,
+    processCount: result.processCount,
+    laneCount: result.laneCount,
+    newVersion,
+  });
 }
 
