@@ -65,6 +65,19 @@ const api = {
         getSyncState: (processTableId) => electron_1.ipcRenderer.invoke('bpmn:getSyncState', processTableId),
         syncToProcessTable: (params) => electron_1.ipcRenderer.invoke('bpmn:syncToProcessTable', params),
         syncToBpmn: (processTableId) => electron_1.ipcRenderer.invoke('process:syncToBpmn', processTableId),
+        // デバッグ用: sync_stateをクリア
+        clearSyncState: (processTableId) => electron_1.ipcRenderer.invoke('bpmn:clearSyncState', processTableId),
+    },
+    // データオブジェクト管理
+    dataObject: {
+        create: (processTableId, data) => electron_1.ipcRenderer.invoke('dataObject:create', processTableId, data),
+        getByProcessTable: (processTableId) => electron_1.ipcRenderer.invoke('dataObject:getByProcessTable', processTableId),
+        getById: (id) => electron_1.ipcRenderer.invoke('dataObject:getById', id),
+        update: (id, data) => electron_1.ipcRenderer.invoke('dataObject:update', id, data),
+        delete: (id) => electron_1.ipcRenderer.invoke('dataObject:delete', id),
+        linkToProcess: (dataObjectId, processId, type) => electron_1.ipcRenderer.invoke('dataObject:linkToProcess', dataObjectId, processId, type),
+        unlinkFromProcess: (dataObjectId, processId) => electron_1.ipcRenderer.invoke('dataObject:unlinkFromProcess', dataObjectId, processId),
+        getLinkedProcesses: (dataObjectId) => electron_1.ipcRenderer.invoke('dataObject:getLinkedProcesses', dataObjectId),
     },
     // Phase 9: マニュアル管理（工程表から自動生成、読み取り専用）
     manualTable: {

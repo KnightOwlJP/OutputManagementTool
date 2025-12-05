@@ -45,13 +45,24 @@ interface BpmnExportResult {
 export async function exportProcessTableToBpmnXml(input: BpmnExportInput): Promise<BpmnExportResult> {
   const { processTable, processes, swimlanes, autoLayout = true } = input;
 
+  console.log('[BPMN Export] Starting export with:', {
+    processCount: processes.length,
+    swimlaneCount: swimlanes.length,
+    autoLayout,
+  });
+
   // ELK自動レイアウトを実行（オプション）
   let layoutResult: BpmnLayoutResult | null = null;
   if (autoLayout && processes.length > 0 && swimlanes.length > 0) {
     try {
       layoutResult = await layoutBpmnProcess(processes, swimlanes);
+      console.log('[BPMN Export] ELK layout completed:', {
+        nodeCount: layoutResult.nodes.size,
+        edgeCount: layoutResult.edges.size,
+        laneCount: layoutResult.lanes.size,
+      });
     } catch (error) {
-      console.error('ELK layout failed, falling back to simple layout:', error);
+      console.error('[BPMN Export] ELK layout failed, falling back to simple layout:', error);
       layoutResult = null;
     }
   }
@@ -134,6 +145,17 @@ export async function exportProcessTableToBpmnXml(input: BpmnExportInput): Promi
   xml += generateBpmnDiagram(processTable, processes, swimlanes, layoutResult);
 
   xml += `</bpmn:definitions>`;
+
+  console.log('[BPMN Export] XML generation completed:', {
+    xmlLength: xml.length,
+    processCount: processes.length,
+    laneCount: swimlanes.length,
+  });
+
+  // デバッグ: 生成されたXMLの一部をコンソールに出力
+  if (processes.length > 0) {
+    console.log('[BPMN Export] Generated XML (first 2000 chars):', xml.substring(0, 2000));
+  }
 
   return {
     xml,

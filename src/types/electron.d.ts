@@ -155,6 +155,7 @@ export interface ElectronAPI {
       version: number;
     }) => Promise<SyncResult>;
     syncToBpmn: (processTableId: string) => Promise<void>;
+    clearSyncState: (processTableId?: string) => Promise<void>;
   };
   // Phase 9: マニュアル管理（工程表から自動生成、読み取り専用）
   manualTable: {

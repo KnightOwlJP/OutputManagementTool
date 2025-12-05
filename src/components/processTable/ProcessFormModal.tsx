@@ -426,12 +426,62 @@ export function ProcessFormModal({
                     <div className="space-y-3">
                       <h3 className="text-sm font-semibold">データオブジェクト</h3>
                       <p className="text-xs text-gray-500">
-                        この工程で入力・出力するデータを選択（将来実装予定）
+                        この工程で入力・出力するデータを選択
                       </p>
-                      {dataObjects.length === 0 && (
+                      {dataObjects.length === 0 ? (
                         <p className="text-sm text-gray-400 text-center py-2">
                           データオブジェクトが登録されていません
                         </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* 入力データオブジェクト */}
+                          <Select
+                            label="入力データ"
+                            placeholder="入力するデータを選択"
+                            selectionMode="multiple"
+                            selectedKeys={new Set(inputDataObjects)}
+                            onSelectionChange={(keys) => {
+                              setInputDataObjects(Array.from(keys) as string[]);
+                            }}
+                            size="sm"
+                            description="この工程で読み取り・参照するデータ"
+                          >
+                            {dataObjects
+                              .filter((obj) => obj.type === 'input' || obj.type === 'both')
+                              .map((obj) => (
+                                <SelectItem key={obj.id} textValue={obj.name}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-blue-500">📥</span>
+                                    {obj.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                          </Select>
+
+                          {/* 出力データオブジェクト */}
+                          <Select
+                            label="出力データ"
+                            placeholder="出力するデータを選択"
+                            selectionMode="multiple"
+                            selectedKeys={new Set(outputDataObjects)}
+                            onSelectionChange={(keys) => {
+                              setOutputDataObjects(Array.from(keys) as string[]);
+                            }}
+                            size="sm"
+                            description="この工程で作成・更新するデータ"
+                          >
+                            {dataObjects
+                              .filter((obj) => obj.type === 'output' || obj.type === 'both')
+                              .map((obj) => (
+                                <SelectItem key={obj.id} textValue={obj.name}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-green-500">📤</span>
+                                    {obj.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                          </Select>
+                        </div>
                       )}
                     </div>
 

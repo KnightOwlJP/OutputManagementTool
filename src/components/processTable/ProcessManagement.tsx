@@ -34,7 +34,7 @@ import {
   ArrowDownIcon,
   ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
-import { Process, Swimlane, CustomColumn } from '@/types/models';
+import { Process, Swimlane, CustomColumn, DataObject } from '@/types/models';
 import { processIPC } from '@/lib/ipc-helpers';
 import { useToast } from '@/contexts/ToastContext';
 import { ProcessFormModal } from './ProcessFormModal';
@@ -46,6 +46,7 @@ interface ProcessManagementProps {
   processTableId: string;
   swimlanes: Swimlane[];
   customColumns: CustomColumn[];
+  dataObjects: DataObject[];
   onUpdate: () => void;
 }
 
@@ -65,6 +66,7 @@ export function ProcessManagement({
   processTableId,
   swimlanes,
   customColumns,
+  dataObjects,
   onUpdate,
 }: ProcessManagementProps) {
   const { showToast } = useToast();
@@ -608,6 +610,7 @@ export function ProcessManagement({
         swimlanes={swimlanes}
         processes={processes}
         customColumns={customColumns}
+        dataObjects={dataObjects}
       />
     </div>
   );

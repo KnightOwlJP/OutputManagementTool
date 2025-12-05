@@ -17,7 +17,7 @@ import {
   EyeIcon
 } from '@heroicons/react/24/outline';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { ProcessTable, Swimlane, CustomColumn, Process } from '@/types/models';
+import { ProcessTable, Swimlane, CustomColumn, Process, DataObject } from '@/types/models';
 import { processTableIPC, processIPC } from '@/lib/ipc-helpers';
 import { useToast } from '@/contexts/ToastContext';
 import { exportProcessTableToBpmnXml, downloadBpmnXml } from '@/lib/bpmn-xml-exporter';
@@ -41,11 +41,13 @@ export function ProcessTableDetailClientPage() {
   const [swimlanes, setSwimlanes] = useState<Swimlane[]>([]);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]); // BPMN表示・エクスポート用
+  const [dataObjects, setDataObjects] = useState<DataObject[]>([]); // データオブジェクト
   const [dataObjectCount, setDataObjectCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('processes');
   const [bpmnEditMode, setBpmnEditMode] = useState<boolean>(false); // Phase 9.1: 編集モード切り替え
   const [bpmnXml, setBpmnXml] = useState<string | undefined>(); // Phase 9.1: BPMN XML状態
+  const [hasUnsavedBpmnChanges, setHasUnsavedBpmnChanges] = useState<boolean>(false); // 未保存のBPMN変更
 
   // URLからIDを抽出
   useEffect(() => {
@@ -143,16 +145,71 @@ export function ProcessTableDetailClientPage() {
       const { dataObjectIPC } = await import('@/lib/ipc-helpers');
       const { data: dataObjectData, error: dataObjectError } = await dataObjectIPC.getByProcessTable(processTableId);
       if (!dataObjectError && dataObjectData) {
+        setDataObjects(dataObjectData);
         setDataObjectCount(dataObjectData.length);
+      } else {
+        setDataObjects([]);
+        setDataObjectCount(0);
       }
 
       // Phase 9.1: BPMN同期状態を取得（編集モード用）
       try {
         const syncState = await window.electronAPI.bpmnSync.getSyncState(processTableId);
+        console.log('[ProcessTableDetail] BPMN sync state:', {
+          hasSyncState: !!syncState,
+          hasXml: !!syncState?.bpmnXml,
+          xmlLength: syncState?.bpmnXml?.length,
+          version: syncState?.version,
+        });
         if (syncState && syncState.bpmnXml) {
-          setBpmnXml(syncState.bpmnXml);
+          console.log('[ProcessTableDetail] Using sync state BPMN XML:', {
+            xmlLength: syncState.bpmnXml.length,
+            xmlPreview: syncState.bpmnXml.substring(0, 1000),
+            xmlEnd: syncState.bpmnXml.substring(syncState.bpmnXml.length - 500),
+          });
+          
+          // 不完全なXML（BPMNDiagram要素がない）の場合は再生成
+          const hasBpmnDiagram = syncState.bpmnXml.includes('<bpmndi:BPMNDiagram');
+          if (!hasBpmnDiagram) {
+            console.warn('[ProcessTableDetail] Sync state XML is incomplete (no BPMNDiagram), regenerating...');
+            // 古いsync_stateを削除
+            try {
+              await window.electronAPI.bpmnSync.clearSyncState(processTableId);
+            } catch (clearError) {
+              console.warn('[ProcessTableDetail] Failed to clear old sync state:', clearError);
+            }
+            
+            // 再生成
+            if (allProcesses && allProcesses.length > 0) {
+              const { exportProcessTableToBpmnXml } = await import('@/lib/bpmn-xml-exporter');
+              const result = await exportProcessTableToBpmnXml({
+                processTable: tableData,
+                processes: allProcesses,
+                swimlanes: swimlaneData || [],
+                autoLayout: true,
+              });
+              console.log('[ProcessTableDetail] Regenerated BPMN XML:', {
+                xmlLength: result.xml?.length,
+                processCount: result.processCount,
+                laneCount: result.laneCount,
+                xmlPreview: result.xml?.substring(0, 1000),
+                xmlEnd: result.xml?.substring(result.xml.length - 500),
+              });
+              setBpmnXml(result.xml);
+              
+              // sync_stateに保存
+              try {
+                await window.electronAPI.bpmnSync.syncToBpmn(processTableId);
+                console.log('[ProcessTableDetail] Sync to BPMN state completed');
+              } catch (syncError) {
+                console.error('[ProcessTableDetail] Failed to sync to BPMN state:', syncError);
+              }
+            }
+          } else {
+            setBpmnXml(syncState.bpmnXml);
+          }
         } else {
-          // 同期状態がない場合は工程データから自動生成
+          // 同期状態がない場合は工程データから自動生成してsync_stateに保存
           if (allProcesses && allProcesses.length > 0) {
             console.log('[ProcessTableDetail] Auto-generating BPMN XML from processes');
             const { exportProcessTableToBpmnXml } = await import('@/lib/bpmn-xml-exporter');
@@ -162,7 +219,21 @@ export function ProcessTableDetailClientPage() {
               swimlanes: swimlaneData || [],
               autoLayout: true,
             });
+            console.log('[ProcessTableDetail] Generated BPMN XML:', {
+              xmlLength: result.xml?.length,
+              processCount: result.processCount,
+              laneCount: result.laneCount,
+              xmlPreview: result.xml?.substring(0, 1000),
+              xmlEnd: result.xml?.substring(result.xml.length - 500),
+            });
             setBpmnXml(result.xml);
+            
+            // sync_stateに保存（工程表→BPMNの同期）
+            try {
+              await window.electronAPI.bpmnSync.syncToBpmn(processTableId);
+            } catch (syncError) {
+              console.warn('[ProcessTableDetail] Failed to sync to BPMN state:', syncError);
+            }
           }
         }
       } catch (error) {
@@ -177,7 +248,21 @@ export function ProcessTableDetailClientPage() {
               swimlanes: swimlaneData || [],
               autoLayout: true,
             });
+            console.log('[ProcessTableDetail] Fallback BPMN XML generation:', {
+              xmlLength: result.xml?.length,
+              processCount: result.processCount,
+              laneCount: result.laneCount,
+              xmlPreview: result.xml?.substring(0, 1000),
+              xmlEnd: result.xml?.substring(result.xml.length - 500),
+            });
             setBpmnXml(result.xml);
+            
+            // sync_stateに保存
+            try {
+              await window.electronAPI.bpmnSync.syncToBpmn(processTableId);
+            } catch (syncError) {
+              console.warn('[ProcessTableDetail] Failed to sync to BPMN state:', syncError);
+            }
           } catch (genError) {
             console.error('[ProcessTableDetail] Failed to auto-generate BPMN:', genError);
           }
@@ -233,6 +318,27 @@ export function ProcessTableDetailClientPage() {
       console.error('[BPMN Export] Failed:', error);
       showToast('error', `BPMN XMLのエクスポートに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
     }
+  };
+
+  // タブ切り替え時の処理
+  const handleTabChange = (key: string) => {
+    // BPMN編集モードで未保存の変更がある場合、警告を表示
+    if (activeTab === 'bpmn' && bpmnEditMode && hasUnsavedBpmnChanges) {
+      const shouldSwitch = window.confirm(
+        'BPMNエディタに未保存の変更があります。\n' +
+        '保存せずにタブを切り替えると変更が失われます。\n\n' +
+        '本当にタブを切り替えますか？'
+      );
+      
+      if (!shouldSwitch) {
+        return;
+      }
+      
+      // タブを切り替える場合、未保存フラグをリセット
+      setHasUnsavedBpmnChanges(false);
+    }
+    
+    setActiveTab(key);
   };
 
   useEffect(() => {
@@ -385,7 +491,7 @@ export function ProcessTableDetailClientPage() {
             <Tabs
               aria-label="工程表管理タブ"
               selectedKey={activeTab}
-              onSelectionChange={(key) => setActiveTab(key as string)}
+              onSelectionChange={(key) => handleTabChange(key as string)}
               classNames={{
                 tabList: "w-full relative rounded-none p-0 border-b border-divider",
                 cursor: "w-full bg-primary",
@@ -400,6 +506,7 @@ export function ProcessTableDetailClientPage() {
                     processTableId={processTableId}
                     swimlanes={swimlanes}
                     customColumns={customColumns}
+                    dataObjects={dataObjects}
                     onUpdate={loadData}
                   />
                 </div>
@@ -440,7 +547,10 @@ export function ProcessTableDetailClientPage() {
                           color="primary"
                           size="sm"
                           startContent={<PencilIcon className="w-4 h-4" />}
-                          onPress={() => setBpmnEditMode(true)}
+                          onPress={() => {
+                            console.log('[BPMN] Switching to edit mode');
+                            setBpmnEditMode(true);
+                          }}
                         >
                           編集モードに切り替え
                         </Button>
@@ -449,7 +559,10 @@ export function ProcessTableDetailClientPage() {
                           color="default"
                           size="sm"
                           startContent={<EyeIcon className="w-4 h-4" />}
-                          onPress={() => setBpmnEditMode(false)}
+                          onPress={() => {
+                            console.log('[BPMN] Switching to view mode');
+                            setBpmnEditMode(false);
+                          }}
                         >
                           表示モードに切り替え
                         </Button>
@@ -471,10 +584,23 @@ export function ProcessTableDetailClientPage() {
                   </div>
 
                   {/* BPMNビューアまたはエディタ */}
+                  {(() => {
+                    console.log('[BPMN Tab] Current state:', { 
+                      bpmnEditMode, 
+                      hasBpmnXml: !!bpmnXml, 
+                      processCount: processes.length,
+                      xmlLength: bpmnXml?.length 
+                    });
+                    return null;
+                  })()}
+                  
                   {!bpmnEditMode ? (
                     <BpmnViewer
                       processes={processes}
+                      swimlanes={swimlanes}
+                      processTable={processTable}
                       projectId={projectId}
+                      bpmnXml={bpmnXml || undefined}
                       height="700px"
                       onElementClick={(elementId) => {
                         console.log('[BPMN] Element clicked:', elementId);
@@ -487,6 +613,7 @@ export function ProcessTableDetailClientPage() {
                       projectId={projectId}
                       diagramId={processTableId}
                       initialXml={bpmnXml}
+                      onUnsavedChanges={(hasChanges) => setHasUnsavedBpmnChanges(hasChanges)}
                       onSave={async (xml) => {
                         try {
                           showToast('info', 'BPMN変更を工程表に同期中...');
@@ -526,8 +653,13 @@ export function ProcessTableDetailClientPage() {
                         }
                       }}
                       onError={(error) => {
-                        console.error('[BPMN Editor] Error:', error);
-                        showToast('error', `BPMNエディタエラー: ${error.message}`);
+                        console.error('[BPMN Editor] Error occurred:', {
+                          message: error?.message,
+                          stack: error?.stack,
+                          name: error?.name,
+                          error: error
+                        });
+                        showToast('error', `BPMNエディタエラー: ${error?.message || '不明なエラー'}`);
                       }}
                     />
                   )}

@@ -57,14 +57,18 @@ export function DataObjectManagement({
     try {
       const { data, error } = await dataObjectIPC.getByProcessTable(processTableId);
       if (error) {
-        showToast('error', `データオブジェクトの読み込みに失敗しました: ${error}`);
+        console.error('[DataObjectManagement] Failed to load data objects:', error);
+        // データが存在しない場合は空配列を設定（新規工程表の場合は正常なのでエラー表示しない）
+        setDataObjects([]);
         return;
       }
       // データが存在しない場合は空配列を設定（新規工程表の場合は正常）
       setDataObjects(data || []);
     } catch (error) {
       console.error('[DataObjectManagement] Failed to load data objects:', error);
+      // 読み込み失敗時のみエラーを表示
       showToast('error', 'データオブジェクトの読み込み中にエラーが発生しました');
+      setDataObjects([]);
     } finally {
       setIsLoading(false);
     }

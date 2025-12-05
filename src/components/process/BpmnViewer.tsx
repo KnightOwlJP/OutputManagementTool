@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import BpmnJS from 'bpmn-js/lib/Viewer';
-import { Process } from '@/types/models';
-import { processToBpmnXml } from '@/utils/processToBpmn';
+import { Process, Swimlane, ProcessTable } from '@/types/models';
+import { exportProcessTableToBpmnXml } from '@/lib/bpmn-xml-exporter';
 import { Card, CardBody, Button, Spinner } from '@heroui/react';
 import { 
   MagnifyingGlassMinusIcon, 
@@ -18,7 +18,11 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
 
 interface BpmnViewerProps {
   processes: Process[];
+  swimlanes?: Swimlane[];
+  processTable?: ProcessTable;
   projectId: string;
+  bpmnXml?: string;
+  autoLayout?: boolean;
   onElementClick?: (elementId: string) => void;
   height?: string | number;
   className?: string;
@@ -26,7 +30,11 @@ interface BpmnViewerProps {
 
 export const BpmnViewer: React.FC<BpmnViewerProps> = ({
   processes,
+  swimlanes = [],
+  processTable,
   projectId,
+  bpmnXml,
+  autoLayout = true,
   onElementClick,
   height = '600px',
   className = '',
@@ -35,7 +43,7 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
   const viewerRef = useRef<BpmnJS | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [bpmnXml, setBpmnXml] = useState<string>('');
+  const [generatedXml, setGeneratedXml] = useState<string>('');
 
   // BPMNビューアの初期化
   useEffect(() => {
@@ -58,10 +66,15 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
     };
   }, []);
 
-  // Process配列からBPMN XMLを生成して表示
+  // BPMN XMLを読み込む（優先: propsのbpmnXml、フォールバック: プロセスから生成）
   useEffect(() => {
     const loadDiagram = async () => {
-      if (!viewerRef.current || processes.length === 0) {
+      if (!viewerRef.current) return;
+
+      // bpmnXmlが渡されている場合はそのまま表示（同期済みの内容を優先）
+      const xmlToRender = bpmnXml;
+
+      if (!xmlToRender && processes.length === 0) {
         setIsLoading(false);
         return;
       }
@@ -70,14 +83,31 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
         setIsLoading(true);
         setError(null);
 
-        // Process配列からBPMN XMLを生成
-        const xml = await processToBpmnXml(processes, projectId);
-        setBpmnXml(xml);
+        let xml = xmlToRender;
 
-        // BPMNダイアグラムをインポート
+        // XML未指定時は工程データから生成
+        if (!xml) {
+          const result = await exportProcessTableToBpmnXml({
+            processTable: processTable || {
+              id: projectId,
+              projectId: projectId,
+              name: 'Process Table',
+              level: 'large',
+              description: '',
+              displayOrder: 0,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+            processes: processes,
+            swimlanes: swimlanes,
+            autoLayout,
+          });
+          xml = result.xml;
+          setGeneratedXml(result.xml);
+        }
+
         await viewerRef.current.importXML(xml);
 
-        // キャンバスをフィット
         const canvas = viewerRef.current.get('canvas') as any;
         canvas.zoom('fit-viewport');
 
@@ -90,7 +120,7 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
     };
 
     loadDiagram();
-  }, [processes, projectId]);
+  }, [processes, swimlanes, processTable, projectId, bpmnXml, autoLayout]);
 
   // 要素クリックイベントの設定
   useEffect(() => {
@@ -151,7 +181,7 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
   };
 
   // 空データの場合
-  if (processes.length === 0) {
+  if (!bpmnXml && processes.length === 0) {
     return (
       <Card className={className}>
         <CardBody className="flex items-center justify-center" style={{ height }}>
@@ -241,11 +271,21 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
 
           <div
             ref={containerRef}
-            className="bpmn-container w-full h-full"
-            style={{ backgroundColor: '#f5f5f5' }}
+            className="bpmn-viewer-container w-full h-full"
+            style={{ backgroundColor: '#ffffff' }}
           />
         </div>
       </CardBody>
+      
+      {/* bpmn-jsの背景色をオーバーライド */}
+      <style jsx global>{`
+        .bpmn-viewer-container .djs-container {
+          background-color: #ffffff !important;
+        }
+        .bpmn-viewer-container svg {
+          background-color: #ffffff !important;
+        }
+      `}</style>
     </Card>
   );
 };

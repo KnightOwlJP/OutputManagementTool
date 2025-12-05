@@ -345,21 +345,21 @@ function createTables(): void {
   `);
 
   // ==========================================
-  // V2: データオブジェクト（プロジェクト全体で共有）
+  // V2: データオブジェクト（工程表ごとに管理）
   // ==========================================
   db.exec(`
     CREATE TABLE IF NOT EXISTS data_objects (
       id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
+      process_table_id TEXT NOT NULL,
       name TEXT NOT NULL,
       type TEXT NOT NULL,
       description TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_data_objects_project_id ON data_objects(project_id);
+    CREATE INDEX IF NOT EXISTS idx_data_objects_process_table_id ON data_objects(process_table_id);
     CREATE INDEX IF NOT EXISTS idx_data_objects_type ON data_objects(type);
   `);
 
@@ -510,6 +510,50 @@ function runMigrations(): void {
         }
         
         console.log('[Migration] v2_003_phase_9_1_bpmn_sync: Migration completed successfully');
+      }
+    },
+    {
+      version: 'v2_004_fix_data_objects_schema',
+      up: () => {
+        console.log('[Migration] v2_004_fix_data_objects_schema: Fixing data_objects table schema...');
+        
+        // data_objectsテーブルのスキーマを確認
+        const columns = db!.prepare(`PRAGMA table_info(data_objects)`).all() as any[];
+        const columnNames = columns.map((col: any) => col.name);
+        
+        // project_idカラムが存在する場合、process_table_idに変更
+        if (columnNames.includes('project_id') && !columnNames.includes('process_table_id')) {
+          console.log('[Migration] Recreating data_objects table with process_table_id...');
+          
+          // 既存データを一時テーブルに退避（データがある場合）
+          db!.exec(`
+            CREATE TABLE data_objects_backup AS SELECT * FROM data_objects;
+            DROP TABLE data_objects;
+            
+            CREATE TABLE data_objects (
+              id TEXT PRIMARY KEY,
+              process_table_id TEXT NOT NULL,
+              name TEXT NOT NULL,
+              type TEXT NOT NULL,
+              description TEXT,
+              created_at INTEGER NOT NULL,
+              updated_at INTEGER NOT NULL,
+              FOREIGN KEY (process_table_id) REFERENCES process_tables(id) ON DELETE CASCADE
+            );
+            
+            CREATE INDEX idx_data_objects_process_table_id ON data_objects(process_table_id);
+            CREATE INDEX idx_data_objects_type ON data_objects(type);
+            
+            DROP TABLE IF EXISTS data_objects_backup;
+          `);
+          
+          console.log('[Migration] data_objects table recreated with process_table_id');
+        } else if (!columnNames.includes('process_table_id')) {
+          // テーブルが存在しない場合は作成（v2_002で作成済みの場合はスキップ）
+          console.log('[Migration] data_objects table already has correct schema or does not exist');
+        }
+        
+        console.log('[Migration] v2_004_fix_data_objects_schema: Migration completed successfully');
       }
     }
   ];

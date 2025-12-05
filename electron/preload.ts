@@ -132,6 +132,29 @@ const api = {
       ipcRenderer.invoke('bpmn:syncToProcessTable', params),
     syncToBpmn: (processTableId: string) => 
       ipcRenderer.invoke('process:syncToBpmn', processTableId),
+    // デバッグ用: sync_stateをクリア
+    clearSyncState: (processTableId?: string) =>
+      ipcRenderer.invoke('bpmn:clearSyncState', processTableId),
+  },
+
+  // データオブジェクト管理
+  dataObject: {
+    create: (processTableId: string, data: { name: string; type: 'input' | 'output' | 'both'; description?: string }): Promise<DataObject> =>
+      ipcRenderer.invoke('dataObject:create', processTableId, data),
+    getByProcessTable: (processTableId: string): Promise<DataObject[]> =>
+      ipcRenderer.invoke('dataObject:getByProcessTable', processTableId),
+    getById: (id: string): Promise<DataObject | null> =>
+      ipcRenderer.invoke('dataObject:getById', id),
+    update: (id: string, data: { name?: string; type?: 'input' | 'output' | 'both'; description?: string }): Promise<DataObject> =>
+      ipcRenderer.invoke('dataObject:update', id, data),
+    delete: (id: string): Promise<void> =>
+      ipcRenderer.invoke('dataObject:delete', id),
+    linkToProcess: (dataObjectId: string, processId: string, type: 'input' | 'output'): Promise<void> =>
+      ipcRenderer.invoke('dataObject:linkToProcess', dataObjectId, processId, type),
+    unlinkFromProcess: (dataObjectId: string, processId: string): Promise<void> =>
+      ipcRenderer.invoke('dataObject:unlinkFromProcess', dataObjectId, processId),
+    getLinkedProcesses: (dataObjectId: string): Promise<any[]> =>
+      ipcRenderer.invoke('dataObject:getLinkedProcesses', dataObjectId),
   },
 
   // Phase 9: マニュアル管理（工程表から自動生成、読み取り専用）

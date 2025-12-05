@@ -12,6 +12,7 @@ interface BpmnEditorProps {
   initialXml?: string;
   onSave?: (xml: string) => void;
   onError?: (error: Error) => void;
+  onUnsavedChanges?: (hasChanges: boolean) => void;
 }
 
 const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -39,6 +40,7 @@ export const BpmnEditor = memo(function BpmnEditor({
   initialXml,
   onSave,
   onError,
+  onUnsavedChanges,
 }: BpmnEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const modelerRef = useRef<BpmnModeler | null>(null);
@@ -63,15 +65,22 @@ export const BpmnEditor = memo(function BpmnEditor({
 
     // XMLをロード
     const xmlToLoad = initialXml || EMPTY_BPMN;
+    console.log('[BpmnEditor] Loading XML, length:', xmlToLoad?.length);
+    console.log('[BpmnEditor] XML preview:', xmlToLoad?.substring(0, 500));
+    
     modeler
       .importXML(xmlToLoad)
       .then(() => {
+        console.log('[BpmnEditor] Successfully loaded BPMN diagram');
         const canvas = modeler.get('canvas') as any;
         canvas.zoom('fit-viewport');
         setIsLoading(false);
       })
-      .catch((err: Error) => {
+      .catch((err: any) => {
         console.error('Failed to load BPMN diagram:', err);
+        console.error('Error message:', err?.message);
+        console.error('Error stack:', err?.stack);
+        console.error('Error warnings:', err?.warnings);
         if (onError) onError(err);
         setIsLoading(false);
       });
@@ -80,6 +89,9 @@ export const BpmnEditor = memo(function BpmnEditor({
     const eventBus = modeler.get('eventBus') as any;
     const changeHandler = () => {
       setHasChanges(true);
+      if (onUnsavedChanges) {
+        onUnsavedChanges(true);
+      }
     };
 
     eventBus.on('commandStack.changed', changeHandler);
@@ -111,6 +123,9 @@ export const BpmnEditor = memo(function BpmnEditor({
       }
 
       setHasChanges(false);
+      if (onUnsavedChanges) {
+        onUnsavedChanges(false);
+      }
     } catch (err) {
       console.error('Failed to save BPMN diagram:', err);
       if (onError && err instanceof Error) {

@@ -45,14 +45,25 @@ const NODE_SIZES = {
   gateway: { width: 50, height: 50 }
 } as const;
 
-const LAYOUT_OPTIONS = {
+// ルートレベル: スイムレーンを縦方向（DOWN）に配置
+const ROOT_LAYOUT_OPTIONS = {
   'elk.algorithm': 'layered',
-  'elk.direction': 'RIGHT',
+  'elk.direction': 'DOWN', // スイムレーンを縦に並べる
+  'elk.spacing.nodeNode': '20', // レーン間のスペース
+  'elk.layered.spacing.nodeNodeBetweenLayers': '20',
+  'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+  'elk.padding': '[top=10,left=10,bottom=10,right=10]'
+} as const;
+
+// レーンレベル: プロセスを横方向（RIGHT）に配置
+const LANE_LAYOUT_OPTIONS = {
+  'elk.algorithm': 'layered',
+  'elk.direction': 'RIGHT', // プロセスを横に並べる
   'elk.spacing.nodeNode': '50',
   'elk.spacing.edgeNode': '30',
   'elk.layered.spacing.nodeNodeBetweenLayers': '80',
   'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-  'elk.hierarchyHandling': 'INCLUDE_CHILDREN'
+  'elk.padding': '[top=20,left=60,bottom=20,right=20]' // 左側にレーンラベル用のスペース
 } as const;
 
 const MIN_LANE_HEIGHT = 150; // 最低レーン高さ
@@ -92,7 +103,7 @@ function convertToElkGraph(
   // ルートノード（プロセス全体）
   const rootNode: ElkNode = {
     id: 'root',
-    layoutOptions: LAYOUT_OPTIONS,
+    layoutOptions: ROOT_LAYOUT_OPTIONS,
     children: [],
     edges: []
   };
@@ -117,6 +128,16 @@ function convertToElkGraph(
     laneChildren.get(process.laneId)!.push(elkNode);
   });
 
+  // 全レーンで統一する幅を計算（最も多くのノードがあるレーンに基づく）
+  let maxLaneWidth = 800; // 最小レーン幅
+  laneChildren.forEach(nodesInLane => {
+    if (nodesInLane.length > 0) {
+      // ノード幅の合計 + ノード間スペース + パディング
+      const estimatedWidth = nodesInLane.length * 150 + (nodesInLane.length - 1) * 80 + 100;
+      maxLaneWidth = Math.max(maxLaneWidth, estimatedWidth);
+    }
+  });
+
   // レーンをELKの子ノードとして追加
   swimlanes
     .sort((a, b) => a.order - b.order)
@@ -132,13 +153,9 @@ function convertToElkGraph(
       const laneNode: ElkNode = {
         id: `lane_${lane.id}`,
         children: nodesInLane,
-        layoutOptions: {
-          'elk.algorithm': 'layered',
-          'elk.direction': 'RIGHT',
-          'elk.padding': '[top=20,left=20,bottom=20,right=20]'
-        },
+        layoutOptions: LANE_LAYOUT_OPTIONS,
         labels: [{ text: lane.name }],
-        // レーン高さは内容物+パディングで自動計算されるが、最小値を設定
+        width: maxLaneWidth, // すべてのレーンを同じ幅に
         height: contentHeight + 60 // パディング分を追加
       };
 

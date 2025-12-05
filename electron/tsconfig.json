@@ -12,7 +12,11 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["node", "electron"]
+    "types": ["node", "electron"],
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "../out", "../dist", "*.js"]
