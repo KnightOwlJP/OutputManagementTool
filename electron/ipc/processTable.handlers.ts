@@ -7,8 +7,9 @@ interface ProcessTable {
   id: string;
   projectId: string;
   name: string;
-  level: 'L1' | 'L2' | 'L3';
+  level: 'large' | 'medium' | 'small' | 'detail';
   description?: string;
+  isInvestigation: boolean;
   displayOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -39,16 +40,18 @@ interface CustomColumn {
 interface CreateProcessTableDto {
   projectId: string;
   name: string;
-  level: 'L1' | 'L2' | 'L3';
+  level: 'large' | 'medium' | 'small' | 'detail';
   description?: string;
+  isInvestigation?: boolean;
   swimlanes?: Array<{ name: string; color?: string }>;
   customColumns?: Array<{ name: string; type: string; options?: string[]; required?: boolean }>;
 }
 
 interface UpdateProcessTableDto {
   name?: string;
-  level?: 'L1' | 'L2' | 'L3';
+  level?: 'large' | 'medium' | 'small' | 'detail';
   description?: string;
+  isInvestigation?: boolean;
 }
 
 interface CreateProcessTableResult {
@@ -81,10 +84,12 @@ export function registerProcessTableHandlers(): void {
         const displayOrder = db.prepare('SELECT COALESCE(MAX(display_order), -1) + 1 as next_order FROM process_tables WHERE project_id = ?')
           .get(data.projectId) as { next_order: number };
 
+        const isInvestigation = data.isInvestigation ? 1 : 0;
+
         db.prepare(`
-          INSERT INTO process_tables (id, project_id, name, level, description, display_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(processTableId, data.projectId, data.name, data.level, data.description || null, displayOrder.next_order, now, now);
+          INSERT INTO process_tables (id, project_id, name, level, description, is_investigation, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(processTableId, data.projectId, data.name, data.level, data.description || null, isInvestigation, displayOrder.next_order, now, now);
 
         const processTable: ProcessTable = {
           id: processTableId,
@@ -92,6 +97,7 @@ export function registerProcessTableHandlers(): void {
           name: data.name,
           level: data.level,
           description: data.description,
+          isInvestigation: !!data.isInvestigation,
           displayOrder: displayOrder.next_order,
           createdAt: new Date(now),
           updatedAt: new Date(now),
@@ -168,7 +174,7 @@ export function registerProcessTableHandlers(): void {
     try {
       const db = getDatabase();
       const rows = db.prepare(`
-        SELECT id, project_id, name, level, description, display_order, created_at, updated_at
+        SELECT id, project_id, name, level, description, is_investigation, display_order, created_at, updated_at
         FROM process_tables
         WHERE project_id = ?
         ORDER BY display_order ASC
@@ -178,6 +184,7 @@ export function registerProcessTableHandlers(): void {
         name: string;
         level: string;
         description: string | null;
+        is_investigation: number;
         display_order: number;
         created_at: number;
         updated_at: number;
@@ -187,8 +194,9 @@ export function registerProcessTableHandlers(): void {
         id: row.id,
         projectId: row.project_id,
         name: row.name,
-        level: row.level as 'L1' | 'L2' | 'L3',
+        level: row.level as ProcessTable['level'],
         description: row.description || undefined,
+        isInvestigation: !!row.is_investigation,
         displayOrder: row.display_order,
         createdAt: new Date(row.created_at),
         updatedAt: new Date(row.updated_at),
@@ -204,7 +212,7 @@ export function registerProcessTableHandlers(): void {
     try {
       const db = getDatabase();
       const row = db.prepare(`
-        SELECT id, project_id, name, level, description, display_order, created_at, updated_at
+        SELECT id, project_id, name, level, description, is_investigation, display_order, created_at, updated_at
         FROM process_tables
         WHERE id = ?
       `).get(processTableId) as {
@@ -213,6 +221,7 @@ export function registerProcessTableHandlers(): void {
         name: string;
         level: string;
         description: string | null;
+        is_investigation: number;
         display_order: number;
         created_at: number;
         updated_at: number;
@@ -224,8 +233,9 @@ export function registerProcessTableHandlers(): void {
         id: row.id,
         projectId: row.project_id,
         name: row.name,
-        level: row.level as 'L1' | 'L2' | 'L3',
+        level: row.level as ProcessTable['level'],
         description: row.description || undefined,
+        isInvestigation: !!row.is_investigation,
         displayOrder: row.display_order,
         createdAt: new Date(row.created_at),
         updatedAt: new Date(row.updated_at),
@@ -257,6 +267,10 @@ export function registerProcessTableHandlers(): void {
         updates.push('description = ?');
         values.push(data.description || null);
       }
+      if (data.isInvestigation !== undefined) {
+        updates.push('is_investigation = ?');
+        values.push(data.isInvestigation ? 1 : 0);
+      }
 
       if (updates.length === 0) {
         throw new Error('No fields to update');
@@ -273,7 +287,7 @@ export function registerProcessTableHandlers(): void {
       `).run(...values);
 
       const updated = db.prepare(`
-        SELECT id, project_id, name, level, description, display_order, created_at, updated_at
+        SELECT id, project_id, name, level, description, is_investigation, display_order, created_at, updated_at
         FROM process_tables
         WHERE id = ?
       `).get(processTableId) as {
@@ -282,6 +296,7 @@ export function registerProcessTableHandlers(): void {
         name: string;
         level: string;
         description: string | null;
+        is_investigation: number;
         display_order: number;
         created_at: number;
         updated_at: number;
@@ -292,8 +307,9 @@ export function registerProcessTableHandlers(): void {
         id: updated.id,
         projectId: updated.project_id,
         name: updated.name,
-        level: updated.level as 'L1' | 'L2' | 'L3',
+        level: updated.level as ProcessTable['level'],
         description: updated.description || undefined,
+        isInvestigation: !!updated.is_investigation,
         displayOrder: updated.display_order,
         createdAt: new Date(updated.created_at),
         updatedAt: new Date(updated.updated_at),

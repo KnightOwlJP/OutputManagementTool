@@ -74,6 +74,11 @@ export const BpmnEditor = memo(function BpmnEditor({
         console.log('[BpmnEditor] Successfully loaded BPMN diagram');
         const canvas = modeler.get('canvas') as any;
         canvas.zoom('fit-viewport');
+        const viewbox = canvas.viewbox();
+        canvas.viewbox({
+          ...viewbox,
+          x: viewbox.x - 60, // 左に余白を作り初期配置を少し右へ寄せる
+        });
         setIsLoading(false);
       })
       .catch((err: any) => {

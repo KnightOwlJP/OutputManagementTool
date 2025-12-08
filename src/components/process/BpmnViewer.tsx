@@ -110,6 +110,11 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
 
         const canvas = viewerRef.current.get('canvas') as any;
         canvas.zoom('fit-viewport');
+        const viewbox = canvas.viewbox();
+        canvas.viewbox({
+          ...viewbox,
+          x: viewbox.x - 60, // 左に余白を追加しオブジェクトを右へ少し寄せる
+        });
 
         setIsLoading(false);
       } catch (err) {

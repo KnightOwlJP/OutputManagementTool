@@ -223,10 +223,11 @@ export async function calculateBpmnLayout(processes: Process[]): Promise<BpmnLay
 function applySimpleLayout(elements: BpmnElement[], flows: BpmnFlow[]): BpmnLayout {
   const HORIZONTAL_SPACING = 150;
   const VERTICAL_POSITION = 150;
+  const LEFT_PADDING = 80;
 
   const layoutedElements = elements.map((elem, index) => ({
     ...elem,
-    x: index * HORIZONTAL_SPACING + 50,
+    x: index * HORIZONTAL_SPACING + LEFT_PADDING,
     y: VERTICAL_POSITION,
   }));
 

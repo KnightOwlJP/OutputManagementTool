@@ -69,22 +69,49 @@ export const exportProcessesToCSV = async ({
 }: ExportOptions): Promise<void> => {
   // ヘッダー行を作成
   const headers = [
-    '工程名',
-    'スイムレーン',
-    'BPMN要素タイプ',
-    'タスクタイプ',
-    '表示順序',
+    'displayId',
+    'name',
+    'largeName',
+    'mediumName',
+    'smallName',
+    'detailName',
+    'lane',
+    'bpmnElement',
+    'taskType',
+    'gatewayType',
+    'eventType',
+    'parallelAllowed',
+    'beforeDisplayIds',
+    'workHours',
+    'skillLevel',
+    'systemName',
+    'documentation',
     ...customColumns.map(col => col.name),
   ];
 
   // データ行を作成
   const rows = processes.map(process => {
     const baseData = [
+      process.displayId ?? '',
       process.name || '',
+      process.largeName || '',
+      process.mediumName || '',
+      process.smallName || '',
+      process.detailName || '',
       getSwimlaneName(process.laneId, swimlanes),
-      getBpmnElementLabel(process.bpmnElement),
-      getTaskTypeLabel(process.taskType),
-      process.displayOrder?.toString() || '',
+      process.bpmnElement || '',
+      process.taskType || '',
+      process.gatewayType || '',
+      process.eventType || '',
+      process.parallelAllowed ? 'true' : 'false',
+      (process.beforeProcessIds || []).map(id => {
+        const target = processes.find(p => p.id === id);
+        return target?.displayId ?? '';
+      }).filter(v => v !== '').join(','),
+      process.workSeconds !== undefined ? (process.workSeconds / 3600).toString() : '',
+      process.skillLevel || '',
+      process.systemName || '',
+      process.documentation || '',
     ];
 
     // カスタム列のデータを追加

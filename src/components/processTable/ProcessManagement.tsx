@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Table,
@@ -34,16 +34,18 @@ import {
   ArrowDownIcon,
   ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
-import { Process, Swimlane, CustomColumn, DataObject } from '@/types/models';
-import { processIPC } from '@/lib/ipc-helpers';
+import { Process, Swimlane, CustomColumn, DataObject, ProcessTable } from '@/types/models';
+import { processIPC, processTableIPC } from '@/lib/ipc-helpers';
 import { useToast } from '@/contexts/ToastContext';
 import { ProcessFormModal } from './ProcessFormModal';
 import { useDisclosure } from '@heroui/react';
 import { exportProcessesToCSV, generateCSVFilename, type CharEncoding } from '@/utils/csvExport';
+import { parseProcessesCsv } from '@/utils/csvImport';
 
 interface ProcessManagementProps {
   projectId: string;
   processTableId: string;
+  processTable: ProcessTable;
   swimlanes: Swimlane[];
   customColumns: CustomColumn[];
   dataObjects: DataObject[];
@@ -61,9 +63,21 @@ const TASK_TYPE_CONFIG: Record<string, { label: string; color: 'primary' | 'seco
   businessRuleTask: { label: 'ルール', color: 'secondary', icon: '📋' },
 };
 
+const IMPORT_LANE_COLORS = [
+  '#3B82F6',
+  '#10B981',
+  '#F59E0B',
+  '#EF4444',
+  '#8B5CF6',
+  '#EC4899',
+  '#06B6D4',
+  '#84CC16',
+];
+
 export function ProcessManagement({
   projectId,
   processTableId,
+  processTable,
   swimlanes,
   customColumns,
   dataObjects,
@@ -75,6 +89,9 @@ export function ProcessManagement({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [editingProcess, setEditingProcess] = useState<Process | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   
   // フィルタ状態
   const [filterSwimlane, setFilterSwimlane] = useState<string>('all');
@@ -104,9 +121,9 @@ export function ProcessManagement({
   };
 
   // 初回読み込み
-  useState(() => {
+  useEffect(() => {
     loadProcesses();
-  });
+  }, []);
 
   // フィルタリングされた工程リスト
   const filteredProcesses = useMemo(() => {
@@ -190,10 +207,21 @@ export function ProcessManagement({
         }
       } else {
         // 新規作成
+        const nextOrder = processes.length + 1;
         const createData: any = {
           processTableId,
           name: data.name!,
+          largeName: data.largeName || data.name,
+          mediumName: data.mediumName,
+          smallName: data.smallName,
+          detailName: data.detailName,
           laneId: data.laneId!,
+          displayId: nextOrder,
+          workSeconds: data.workSeconds ?? 0,
+          workUnitPref: data.workUnitPref,
+          skillLevel: data.skillLevel,
+          systemName: data.systemName,
+          parallelAllowed: data.parallelAllowed,
           bpmnElement: data.bpmnElement || 'task',
           taskType: data.taskType,
           gatewayType: data.gatewayType,
@@ -207,7 +235,13 @@ export function ProcessManagement({
           inputDataObjects: data.inputDataObjects,
           outputDataObjects: data.outputDataObjects,
           customColumns: data.customColumns,
-          displayOrder: processes.length + 1,
+          issueDetail: data.issueDetail,
+          issueCategory: data.issueCategory,
+          countermeasurePolicy: data.countermeasurePolicy,
+          issueWorkSeconds: data.issueWorkSeconds,
+          timeReductionSeconds: data.timeReductionSeconds,
+          rateReductionPercent: data.rateReductionPercent,
+          displayOrder: nextOrder,
         };
         const { error } = await processIPC.create(createData);
         if (error) {
@@ -351,6 +385,181 @@ export function ProcessManagement({
     }
   };
 
+  const handleImportCSVClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportCSVFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = parseProcessesCsv(text, customColumns);
+
+      if (parsed.errors.length > 0) {
+        showToast('error', parsed.errors.join('\n'));
+        return;
+      }
+
+      if (parsed.warnings.length > 0) {
+        showToast('warning', parsed.warnings.join('\n'));
+      }
+
+      // 最新の工程一覧を取得してマップの欠損を防ぐ（画面状態が古い場合に備える）
+      const currentProcResult = await processIPC.getByProcessTable(processTableId);
+      if (currentProcResult.error) {
+        showToast('error', `工程の取得に失敗しました: ${currentProcResult.error}`);
+        return;
+      }
+      const currentProcesses = currentProcResult.data || [];
+
+      // スイムレーン確保（存在しなければ作成）
+      let laneList = [...swimlanes];
+      const laneMap = new Map(laneList.map((l) => [l.name, l]));
+      let nextLaneOrder = laneList.length;
+
+      const ensureLane = async (laneName: string) => {
+        const existing = laneMap.get(laneName);
+        if (existing) return existing;
+        const color = IMPORT_LANE_COLORS[nextLaneOrder % IMPORT_LANE_COLORS.length];
+        const { data, error } = await processTableIPC.createSwimlane(processTableId, {
+          name: laneName,
+          color,
+          displayOrder: nextLaneOrder,
+        });
+        if (error || !data) {
+          throw new Error(error || `スイムレーン「${laneName}」の作成に失敗しました`);
+        }
+        const lane = {
+          id: data.id,
+          processTableId: processTableId,
+          name: laneName,
+          color,
+          order: data.orderNum ?? nextLaneOrder,
+          createdAt: data.createdAt ?? new Date(),
+          updatedAt: data.updatedAt ?? new Date(),
+        } as Swimlane;
+        laneMap.set(laneName, lane);
+        laneList = [...laneList, lane];
+        nextLaneOrder += 1;
+        return lane;
+      };
+
+      // displayId採番用
+      let displayIdCounter = currentProcesses.reduce((max, p) => Math.max(max, p.displayId ?? 0), 0);
+
+      // 事前に displayId を全行へ確定させる（欠損は採番）
+      parsed.rows.forEach((row) => {
+        if (row.displayId === undefined) {
+          row.displayId = ++displayIdCounter;
+        }
+      });
+
+      // 既存工程も含めた displayId -> id マップを先に用意する
+      const idByDisplayId = new Map<number, string>();
+      currentProcesses.forEach(p => {
+        if (p.displayId !== undefined && p.displayId !== null) {
+          idByDisplayId.set(p.displayId, p.id);
+        }
+      });
+      const importedRows: Array<{ displayId: number; beforeDisplayIds: number[] }> = [];
+
+      // 1st pass: create/update without beforeProcessIds
+      for (const row of parsed.rows) {
+        const lane = await ensureLane(row.laneName);
+        const displayId = row.displayId!;
+        const basePayload = {
+          name: row.name,
+          largeName: row.largeName || row.name,
+          mediumName: row.mediumName,
+          smallName: row.smallName,
+          detailName: row.detailName,
+          laneId: lane.id,
+          displayId,
+          bpmnElement: (row.bpmnElement as Process['bpmnElement']) || 'task',
+          taskType: row.taskType as Process['taskType'],
+          gatewayType: row.gatewayType as Process['gatewayType'],
+          eventType: row.eventType as Process['eventType'],
+          parallelAllowed: row.parallelAllowed ?? false,
+          workSeconds: row.workSeconds,
+          skillLevel: row.skillLevel,
+          systemName: row.systemName,
+          documentation: row.documentation,
+          customColumns: Object.keys(row.customColumns).length > 0 ? row.customColumns : undefined,
+        };
+
+        const existing = currentProcesses.find((p) => p.displayId === displayId);
+        if (existing) {
+          const { error } = await processIPC.update(existing.id, basePayload);
+          if (error) throw new Error(`displayId ${displayId}: 更新に失敗しました - ${error}`);
+          idByDisplayId.set(displayId, existing.id);
+        } else {
+          const { data, error } = await processIPC.create({
+            processTableId,
+            ...basePayload,
+            beforeProcessIds: [],
+          });
+          if (error || !data) throw new Error(`displayId ${displayId}: 作成に失敗しました - ${error || 'unknown'}`);
+          idByDisplayId.set(displayId, data.id);
+        }
+
+        importedRows.push({ displayId, beforeDisplayIds: row.beforeDisplayIds });
+      }
+
+      // 2nd pass: 最新データを再取得してから前工程を反映
+      const refreshed = await processIPC.getByProcessTable(processTableId);
+      if (refreshed.error) {
+        showToast('error', `工程の再取得に失敗しました: ${refreshed.error}`);
+        return;
+      }
+      const refreshedProcs = refreshed.data || [];
+      const displayIdMap = new Map<number, string>();
+      refreshedProcs.forEach(p => {
+        if (p.displayId !== undefined && p.displayId !== null) displayIdMap.set(p.displayId, p.id);
+      });
+
+      const unresolvedBefore: Array<{ displayId: number; missing: number[] }> = [];
+
+      for (const item of importedRows) {
+        const targetId = displayIdMap.get(item.displayId);
+        if (!targetId) continue;
+        const missingRefs: number[] = [];
+        const beforeIds = item.beforeDisplayIds
+          .map((d) => {
+            const resolved = displayIdMap.get(d);
+            if (!resolved) missingRefs.push(d);
+            return resolved;
+          })
+          .filter((v): v is string => Boolean(v));
+        const { error } = await processIPC.update(targetId, { beforeProcessIds: beforeIds });
+        if (error) throw new Error(`displayId ${item.displayId}: 前工程の設定に失敗しました - ${error}`);
+        if (missingRefs.length > 0) {
+          unresolvedBefore.push({ displayId: item.displayId, missing: missingRefs });
+        }
+      }
+
+      if (unresolvedBefore.length > 0) {
+        const message = unresolvedBefore
+          .slice(0, 5)
+          .map((u) => `displayId ${u.displayId}: ${u.missing.join(', ')}`)
+          .join('\n');
+        const suffix = unresolvedBefore.length > 5 ? `\n...ほか${unresolvedBefore.length - 5}件` : '';
+        showToast('warning', `前工程に該当するdisplayIdが見つかりませんでした:\n${message}${suffix}`);
+      }
+
+      showToast('success', 'CSVインポートが完了しました');
+      loadProcesses();
+      onUpdate();
+    } catch (error) {
+      console.error('[ProcessManagement] CSV import failed:', error);
+      showToast('error', `CSVインポートに失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
+    }
+  };
+
   // フィルタリセット
   const handleResetFilters = () => {
     setFilterSwimlane('all');
@@ -421,6 +630,22 @@ export function ProcessManagement({
             >
               CSVエクスポート
             </Button>
+            <Button
+              color="secondary"
+              size="sm"
+              variant="flat"
+              onPress={handleImportCSVClick}
+              isLoading={isImporting}
+            >
+              CSVインポート
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportCSVFile}
+            />
           </div>
         </div>
       </div>
@@ -611,6 +836,7 @@ export function ProcessManagement({
         processes={processes}
         customColumns={customColumns}
         dataObjects={dataObjects}
+        processTable={processTable}
       />
     </div>
   );

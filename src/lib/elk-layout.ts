@@ -1,10 +1,11 @@
 /**
- * ELK (Eclipse Layout Kernel) Auto-Layout Engine
- * 
- * BPMNフローノードの座標を自動計算するためのレイアウトエンジン
+ * BPMNフローノードの座標を自動計算するレイアウトエンジン
+ * ELK の代わりに要件に沿った独自配置ルールを実装:
+ * - 同一スイムレーン内は基本的に水平方向に並べる
+ * - 同一スイムレーン内で垂直方向に並ぶのは、並列許可かつ前工程集合が同じものだけ
+ * - ランク（X方向）は前工程の最大ランク+1、前工程なしは0
  */
 
-import ELK, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
 import { Process, Swimlane } from '@/types/models';
 
 // ==========================================
@@ -45,28 +46,17 @@ const NODE_SIZES = {
   gateway: { width: 50, height: 50 }
 } as const;
 
-// ルートレベル: スイムレーンを縦方向（DOWN）に配置
-const ROOT_LAYOUT_OPTIONS = {
-  'elk.algorithm': 'layered',
-  'elk.direction': 'DOWN', // スイムレーンを縦に並べる
-  'elk.spacing.nodeNode': '20', // レーン間のスペース
-  'elk.layered.spacing.nodeNodeBetweenLayers': '20',
-  'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-  'elk.padding': '[top=10,left=10,bottom=10,right=10]'
-} as const;
-
-// レーンレベル: プロセスを横方向（RIGHT）に配置
-const LANE_LAYOUT_OPTIONS = {
-  'elk.algorithm': 'layered',
-  'elk.direction': 'RIGHT', // プロセスを横に並べる
-  'elk.spacing.nodeNode': '50',
-  'elk.spacing.edgeNode': '30',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '80',
-  'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-  'elk.padding': '[top=20,left=60,bottom=20,right=20]' // 左側にレーンラベル用のスペース
-} as const;
-
-const MIN_LANE_HEIGHT = 150; // 最低レーン高さ
+const MIN_LANE_HEIGHT = 180; // 最低レーン高さ
+const LEFT_PADDING = 80;
+const RIGHT_PADDING = 80;
+const LANE_TOP_PADDING = 30;
+const LANE_BOTTOM_PADDING = 30;
+const H_SPACING = 220; // 水平方向の並び間隔
+const PARALLEL_V_SPACING = 110; // 同一ランク内での縦並び間隔
+const EDGE_HORIZONTAL_OFFSET = 24; // エッジを曲げる際の水平オフセット
+const EDGE_LANE_CLEARANCE = 10; // レーン上部に逃がすクリアランス
+const EDGE_VERTICAL_CLEARANCE = 30; // ノードを避けるために上方向へ持ち上げる量
+const EDGE_TRACK_SPACING = 12; // レーン上部を使う際のトラック間隔
 
 // ==========================================
 // ELKレイアウトエンジン
@@ -79,201 +69,196 @@ export async function layoutBpmnProcess(
   processes: Process[],
   swimlanes: Swimlane[]
 ): Promise<BpmnLayoutResult> {
-  const elk = new ELK();
-
-  // ELKグラフに変換
-  const elkGraph = convertToElkGraph(processes, swimlanes);
-
-  // レイアウト実行
-  const layoutedGraph = await elk.layout(elkGraph);
-
-  // BPMN座標形式に変換
-  const result = convertToBpmnLayout(layoutedGraph, processes, swimlanes);
-
-  return result;
+  return computeManualLayout(processes, swimlanes);
 }
 
 /**
  * ProcessデータをELKグラフ形式に変換
  */
-function convertToElkGraph(
-  processes: Process[],
-  swimlanes: Swimlane[]
-): ElkNode {
-  // ルートノード（プロセス全体）
-  const rootNode: ElkNode = {
-    id: 'root',
-    layoutOptions: ROOT_LAYOUT_OPTIONS,
-    children: [],
-    edges: []
+// =============================================================
+// 手動レイアウト実装
+// =============================================================
+
+type RankMap = Map<string, number>;
+
+function computeRanks(processes: Process[]): RankMap {
+  const rankMap: RankMap = new Map();
+  const processMap = new Map(processes.map(p => [p.id, p]));
+  const predsMap = new Map<string, string[]>(
+    processes.map(p => [p.id, (p.beforeProcessIds || []).filter(id => processMap.has(id))])
+  );
+
+  const unassigned = new Set(processes.map(p => p.id));
+
+  const samePredKey = (p: Process) => {
+    const preds = predsMap.get(p.id) || [];
+    return preds.length === 0 ? '' : preds.slice().sort().join('|');
   };
 
-  // スイムレーンごとにグループ化
-  const laneChildren: Map<string, ElkNode[]> = new Map();
+  while (unassigned.size > 0) {
+    let progress = false;
 
-  processes.forEach(process => {
-    const nodeSize = getNodeSize(process);
-    
-    const elkNode: ElkNode = {
-      id: process.id,
-      width: nodeSize.width,
-      height: nodeSize.height,
-      labels: process.name ? [{ text: process.name }] : undefined
-    };
+    for (const pid of Array.from(unassigned)) {
+      const preds = predsMap.get(pid) || [];
+      const allResolved = preds.every(pr => rankMap.has(pr));
+      if (!allResolved) continue;
 
-    // レーンごとにノードを分類
-    if (!laneChildren.has(process.laneId)) {
-      laneChildren.set(process.laneId, []);
+      const baseRank = preds.length === 0 ? 0 : Math.max(...preds.map(pr => (rankMap.get(pr) ?? 0) + 1));
+      const proc = processMap.get(pid)!;
+
+      if (proc.parallelAllowed && preds.length > 0) {
+        const key = samePredKey(proc);
+        const parallelGroup = Array.from(unassigned)
+          .map(id => processMap.get(id)!)
+          .filter(p => p.id === proc.id || (p.parallelAllowed && samePredKey(p) === key));
+
+        parallelGroup.forEach(p => {
+          rankMap.set(p.id, baseRank);
+          unassigned.delete(p.id);
+        });
+      } else {
+        rankMap.set(pid, baseRank);
+        unassigned.delete(pid);
+      }
+
+      progress = true;
     }
-    laneChildren.get(process.laneId)!.push(elkNode);
-  });
 
-  // 全レーンで統一する幅を計算（最も多くのノードがあるレーンに基づく）
-  let maxLaneWidth = 800; // 最小レーン幅
-  laneChildren.forEach(nodesInLane => {
-    if (nodesInLane.length > 0) {
-      // ノード幅の合計 + ノード間スペース + パディング
-      const estimatedWidth = nodesInLane.length * 150 + (nodesInLane.length - 1) * 80 + 100;
-      maxLaneWidth = Math.max(maxLaneWidth, estimatedWidth);
+    if (!progress) {
+      // サイクルなどで進まない場合は残りを順番に配置
+      for (const pid of Array.from(unassigned)) {
+        rankMap.set(pid, (rankMap.size === 0 ? 0 : Math.max(...rankMap.values()) + 1));
+        unassigned.delete(pid);
+      }
     }
-  });
+  }
 
-  // レーンをELKの子ノードとして追加
-  swimlanes
-    .sort((a, b) => a.order - b.order)
-    .forEach(lane => {
-      const nodesInLane = laneChildren.get(lane.id) || [];
-      
-      // レーン高さ計算: 内容物に応じて動的だが最低高さを保証
-      const contentHeight = Math.max(
-        ...nodesInLane.map(n => n.height || 0),
-        MIN_LANE_HEIGHT
-      );
-
-      const laneNode: ElkNode = {
-        id: `lane_${lane.id}`,
-        children: nodesInLane,
-        layoutOptions: LANE_LAYOUT_OPTIONS,
-        labels: [{ text: lane.name }],
-        width: maxLaneWidth, // すべてのレーンを同じ幅に
-        height: contentHeight + 60 // パディング分を追加
-      };
-
-      rootNode.children!.push(laneNode);
-    });
-
-  // エッジ（シーケンスフロー）を追加
-  const edges: ElkExtendedEdge[] = [];
-  processes.forEach(process => {
-    (process.nextProcessIds || []).forEach(targetId => {
-      // エッジが同じレーン内か、異なるレーン間かを判定
-      const targetProcess = processes.find(p => p.id === targetId);
-      if (!targetProcess) return;
-
-      edges.push({
-        id: `flow_${process.id}_to_${targetId}`,
-        sources: [process.id],
-        targets: [targetId]
-      });
-    });
-  });
-
-  rootNode.edges = edges;
-
-  return rootNode;
+  return rankMap;
 }
 
-/**
- * レイアウト済みELKグラフをBPMN座標形式に変換
- */
-function convertToBpmnLayout(
-  layoutedGraph: ElkNode,
-  processes: Process[],
-  swimlanes: Swimlane[]
-): BpmnLayoutResult {
-  const nodes = new Map<string, NodeLayout>();
-  const edges = new Map<string, EdgeLayout>();
-  const lanes = new Map<string, LayoutPosition>();
+function computeManualLayout(processes: Process[], swimlanes: Swimlane[]): BpmnLayoutResult {
+  const ranks = computeRanks(processes);
+  const maxRank = Math.max(...Array.from(ranks.values()), 0);
 
-  let totalWidth = 0;
+  const nodes = new Map<string, NodeLayout>();
+  const lanes = new Map<string, LayoutPosition>();
+  const edges = new Map<string, EdgeLayout>();
+
+  // スイムレーン順を order でソート
+  const sortedLanes = [...swimlanes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  let currentY = 0;
+  let totalWidth = LEFT_PADDING + RIGHT_PADDING + (maxRank + 1) * H_SPACING + NODE_SIZES.task.width;
   let totalHeight = 0;
 
-  // レーンとノードの座標を抽出
-  (layoutedGraph.children || []).forEach(laneNode => {
-    const laneId = laneNode.id.replace('lane_', '');
-    
-    // レーン座標
-    const lanePos: LayoutPosition = {
-      x: laneNode.x || 0,
-      y: laneNode.y || 0,
-      width: laneNode.width || 0,
-      height: laneNode.height || 0
-    };
-    lanes.set(laneId, lanePos);
+  sortedLanes.forEach(lane => {
+    const laneProcesses = processes.filter(p => p.laneId === lane.id);
 
-    totalWidth = Math.max(totalWidth, lanePos.x + lanePos.width);
-    totalHeight = Math.max(totalHeight, lanePos.y + lanePos.height);
-
-    // レーン内のノード座標（レーン基準の相対座標→絶対座標に変換）
-    (laneNode.children || []).forEach(node => {
-      const nodeLayout: NodeLayout = {
-        id: node.id,
-        x: (laneNode.x || 0) + (node.x || 0),
-        y: (laneNode.y || 0) + (node.y || 0),
-        width: node.width || 0,
-        height: node.height || 0
-      };
-      nodes.set(node.id, nodeLayout);
+    // ランク→同一ランク内ノード配列
+    const laneByRank = new Map<number, Process[]>();
+    laneProcesses.forEach(p => {
+      const r = ranks.get(p.id) ?? 0;
+      if (!laneByRank.has(r)) laneByRank.set(r, []);
+      laneByRank.get(r)!.push(p);
     });
+
+    let laneHeight = MIN_LANE_HEIGHT;
+    laneByRank.forEach(nodesAtRank => {
+      // 並列を縦に並べる（並列許可かつ同じ前工程のものが同じランクに来ている）
+      // それ以外でも同ランクが複数ある場合は縦に積む
+      const verticalCount = nodesAtRank.length;
+      const heightNeeded = LANE_TOP_PADDING + verticalCount * PARALLEL_V_SPACING + NODE_SIZES.task.height + LANE_BOTTOM_PADDING;
+      laneHeight = Math.max(laneHeight, heightNeeded);
+    });
+
+    const laneTop = currentY;
+    const lanePos: LayoutPosition = {
+      x: 0,
+      y: laneTop,
+      width: totalWidth,
+      height: laneHeight,
+    };
+    lanes.set(lane.id, lanePos);
+
+    // ノード配置
+    laneByRank.forEach((nodesAtRank, rank) => {
+      nodesAtRank.sort((a, b) => a.name.localeCompare(b.name));
+      nodesAtRank.forEach((p, idx) => {
+        const size = getNodeSize(p);
+        const x = LEFT_PADDING + rank * H_SPACING;
+        const y = laneTop + LANE_TOP_PADDING + idx * PARALLEL_V_SPACING;
+
+        nodes.set(p.id, {
+          id: p.id,
+          x,
+          y,
+          width: size.width,
+          height: size.height,
+        });
+      });
+    });
+
+    currentY += laneHeight;
+    totalHeight = Math.max(totalHeight, laneTop + laneHeight);
   });
 
-  // エッジのウェイポイントを抽出
-  (layoutedGraph.edges || []).forEach(edge => {
-    const waypoints: Array<{ x: number; y: number }> = [];
-
-    // ELKのエッジセクション情報を使用
-    if (edge.sections && edge.sections.length > 0) {
-      const section = edge.sections[0];
-      
-      // 始点
-      waypoints.push({
-        x: section.startPoint.x,
-        y: section.startPoint.y
-      });
-
-      // 中間点（ベンドポイント）
-      if (section.bendPoints) {
-        section.bendPoints.forEach(bp => {
-          waypoints.push({ x: bp.x, y: bp.y });
-        });
-      }
-
-      // 終点
-      waypoints.push({
-        x: section.endPoint.x,
-        y: section.endPoint.y
-      });
-    } else {
-      // セクション情報がない場合は、始点と終点を直線で結ぶ
-      const sourceId = Array.isArray(edge.sources) ? edge.sources[0] : edge.sources;
-      const targetId = Array.isArray(edge.targets) ? edge.targets[0] : edge.targets;
-      
-      const sourceNode = nodes.get(sourceId);
+  // エッジのウェイポイント（折れ線）。同一レーン間ではレーン上部のトラックを使いノード重なりを回避。
+  const laneDetourUsage = new Map<string, number>();
+  processes.forEach(p => {
+    (p.nextProcessIds || []).forEach(targetId => {
+      const sourceNode = nodes.get(p.id);
       const targetNode = nodes.get(targetId);
+      if (!sourceNode || !targetNode) return;
 
-      if (sourceNode && targetNode) {
-        waypoints.push({
-          x: sourceNode.x + sourceNode.width / 2,
-          y: sourceNode.y + sourceNode.height / 2
+      const startX = sourceNode.x + sourceNode.width;
+      const startY = sourceNode.y + sourceNode.height / 2;
+      const endX = targetNode.x;
+      const endY = targetNode.y + targetNode.height / 2;
+
+      const sameLane = p.laneId === processes.find(proc => proc.id === targetId)?.laneId;
+      const sourceLane = p.laneId ? lanes.get(p.laneId) : undefined;
+
+      if (sameLane && sourceLane) {
+        const preX = startX + EDGE_HORIZONTAL_OFFSET;
+        const postX = endX - EDGE_HORIZONTAL_OFFSET;
+        const laneTop = sourceLane.y + EDGE_LANE_CLEARANCE;
+        const maxTrackY = sourceLane.y + LANE_TOP_PADDING - EDGE_LANE_CLEARANCE;
+
+        const used = laneDetourUsage.get(p.laneId) ?? 0;
+        laneDetourUsage.set(p.laneId, used + 1);
+        const trackY = Math.min(laneTop + used * EDGE_TRACK_SPACING, maxTrackY);
+        const detourY = Math.min(trackY, Math.min(startY, endY) - EDGE_VERTICAL_CLEARANCE);
+
+        const waypoints = [
+          { x: startX, y: startY },
+          { x: preX, y: startY },
+          { x: preX, y: detourY },
+          { x: postX, y: detourY },
+          { x: postX, y: endY },
+          { x: endX, y: endY },
+        ];
+
+        edges.set(`flow_${p.id}_to_${targetId}`, {
+          id: `flow_${p.id}_to_${targetId}`,
+          waypoints,
         });
-        waypoints.push({
-          x: targetNode.x + targetNode.width / 2,
-          y: targetNode.y + targetNode.height / 2
-        });
+        return;
       }
-    }
 
-    edges.set(edge.id, { id: edge.id, waypoints });
+      // 異なるレーン間はシンプルな折れ線
+      const midX = (startX + endX) / 2;
+      const waypoints = [
+        { x: startX, y: startY },
+        { x: midX, y: startY },
+        { x: midX, y: endY },
+        { x: endX, y: endY },
+      ];
+
+      edges.set(`flow_${p.id}_to_${targetId}`, {
+        id: `flow_${p.id}_to_${targetId}`,
+        waypoints,
+      });
+    });
   });
 
   return {
@@ -281,7 +266,7 @@ function convertToBpmnLayout(
     edges,
     lanes,
     totalWidth,
-    totalHeight
+    totalHeight,
   };
 }
 
@@ -310,6 +295,6 @@ export async function layoutUnpositionedNodes(
   swimlanes: Swimlane[],
   existingLayout?: Map<string, NodeLayout>
 ): Promise<BpmnLayoutResult> {
-  // 未実装の場合は全体レイアウトにフォールバック
+  // 既存実装に統一
   return layoutBpmnProcess(processes, swimlanes);
 }

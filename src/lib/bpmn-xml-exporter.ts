@@ -6,6 +6,48 @@
 import { Process, Swimlane, ProcessTable } from '@/types/models';
 import { layoutBpmnProcess, type BpmnLayoutResult } from './elk-layout';
 
+function toRgb(color: string): { r: number; g: number; b: number } | null {
+  const hex = color?.trim();
+  const full = /^#?([0-9a-fA-F]{6})$/;
+  const short = /^#?([0-9a-fA-F]{3})$/;
+  if (full.test(hex)) {
+    const [, body] = hex.match(full)!;
+    return {
+      r: parseInt(body.slice(0, 2), 16),
+      g: parseInt(body.slice(2, 4), 16),
+      b: parseInt(body.slice(4, 6), 16),
+    };
+  }
+  if (short.test(hex)) {
+    const [, body] = hex.match(short)!;
+    return {
+      r: parseInt(body[0] + body[0], 16),
+      g: parseInt(body[1] + body[1], 16),
+      b: parseInt(body[2] + body[2], 16),
+    };
+  }
+  return null;
+}
+
+function lighten(color: string | undefined, ratio = 0.7): string {
+  const rgb = color ? toRgb(color) : null;
+  const base = rgb ?? { r: 229, g: 231, b: 235 }; // fallback: #e5e7eb
+  const mix = (channel: number) => Math.round(channel + (255 - channel) * (1 - ratio));
+  const r = mix(base.r);
+  const g = mix(base.g);
+  const b = mix(base.b);
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function laneColors(color: string | undefined): { fill: string; stroke: string; font: string } {
+  const stroke = color && toRgb(color) ? color : '#4b5563'; // gray-600 fallback
+  return {
+    fill: lighten(color, 0.75),
+    stroke,
+    font: '#111827', // gray-900 for readability
+  };
+}
+
 // ==========================================
 // ユーティリティ関数
 // ==========================================
@@ -73,6 +115,7 @@ export async function exportProcessTableToBpmnXml(input: BpmnExportInput): Promi
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   id="Definitions_${processTable.id}"
                   targetNamespace="http://output-management-tool.local/bpmn"
@@ -356,6 +399,9 @@ function generateBpmnDiagram(
   layoutResult: BpmnLayoutResult | null
 ): string {
   let xml = `  <bpmndi:BPMNDiagram id="BPMNDiagram_${processTable.id}">
+    <bpmndi:BPMNLabelStyle id="LaneLabelStyle">
+      <dc:Font color="#111827" size="12" />
+    </bpmndi:BPMNLabelStyle>
     <bpmndi:BPMNPlane id="BPMNPlane_${processTable.id}" bpmnElement="Process_${processTable.id}">
 `;
 
@@ -388,7 +434,8 @@ function generateElkBasedDiagram(
   swimlanes.forEach((lane) => {
     const laneLayout = layout.lanes.get(lane.id);
     if (laneLayout) {
-      xml += `      <bpmndi:BPMNShape id="Lane_${lane.id}_di" bpmnElement="Lane_${lane.id}">
+      const colors = laneColors(lane.color);
+      xml += `      <bpmndi:BPMNShape id="Lane_${lane.id}_di" bpmnElement="Lane_${lane.id}" bioc:fill="${colors.fill}" bioc:stroke="${colors.stroke}" bioc:fontcolor="${colors.font}" bpmndi:labelStyle="LaneLabelStyle">
         <dc:Bounds x="${Math.round(laneLayout.x)}" y="${Math.round(laneLayout.y)}" width="${Math.round(laneLayout.width)}" height="${Math.round(laneLayout.height)}" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
@@ -491,14 +538,16 @@ function generateSimpleDiagram(
   const nodeHeight = 80;
   const horizontalSpacing = 150;
   const laneHeight = 200;
+  const leftPadding = 80;
 
-  let currentX = 50;
+  let currentX = leftPadding;
 
   // Lane形状
   swimlanes.forEach((lane, laneIndex) => {
     const laneY = laneIndex * laneHeight;
-    xml += `      <bpmndi:BPMNShape id="Lane_${lane.id}_di" bpmnElement="Lane_${lane.id}">
-        <dc:Bounds x="30" y="${laneY}" width="1000" height="${laneHeight}" />
+    const colors = laneColors(lane.color);
+    xml += `      <bpmndi:BPMNShape id="Lane_${lane.id}_di" bpmnElement="Lane_${lane.id}" bioc:fill="${colors.fill}" bioc:stroke="${colors.stroke}" bioc:fontcolor="${colors.font}" bpmndi:labelStyle="LaneLabelStyle">
+        <dc:Bounds x="${leftPadding - 20}" y="${laneY}" width="1000" height="${laneHeight}" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
 `;

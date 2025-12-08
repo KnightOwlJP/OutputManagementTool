@@ -19,8 +19,9 @@ import {
   Textarea,
   Tabs,
   Tab,
+  Checkbox,
 } from '@heroui/react';
-import { Process, Swimlane, BpmnTaskType, BpmnElementType, GatewayType, EventType, IntermediateEventType, DataObject, ConditionalFlow, MessageFlow, CustomColumn } from '@/types/models';
+import { Process, Swimlane, BpmnTaskType, BpmnElementType, GatewayType, EventType, IntermediateEventType, DataObject, ConditionalFlow, MessageFlow, CustomColumn, ProcessTable } from '@/types/models';
 import { useToast } from '@/contexts/ToastContext';
 import { CustomColumnInputGroup } from './CustomColumnInput';
 
@@ -33,6 +34,7 @@ interface ProcessFormModalProps {
   processes: Process[];
   customColumns: CustomColumn[];
   dataObjects?: DataObject[]; // 将来実装用
+  processTable: ProcessTable;
 }
 
 const TASK_TYPES: { value: BpmnTaskType; label: string; icon: string }[] = [
@@ -65,6 +67,13 @@ const INTERMEDIATE_EVENT_TYPES: { value: IntermediateEventType; label: string; i
   { value: 'conditional', label: '条件', icon: '❓' },
 ];
 
+const SKILL_LEVELS: { value: Process['skillLevel']; label: string }[] = [
+  { value: '-', label: '指定なし' },
+  { value: 'L', label: '低 (L)' },
+  { value: 'M', label: '中 (M)' },
+  { value: 'H', label: '高 (H)' },
+];
+
 export function ProcessFormModal({
   isOpen,
   onClose,
@@ -74,6 +83,7 @@ export function ProcessFormModal({
   processes,
   customColumns,
   dataObjects = [], // デフォルト値
+  processTable,
 }: ProcessFormModalProps) {
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,7 +91,17 @@ export function ProcessFormModal({
 
   // フォーム状態
   const [name, setName] = useState('');
+  const [mediumName, setMediumName] = useState('');
+  const [smallName, setSmallName] = useState('');
+  const [detailName, setDetailName] = useState('');
+  const [parentLargeName, setParentLargeName] = useState('');
+  const [parentMediumName, setParentMediumName] = useState('');
+  const [parentSmallName, setParentSmallName] = useState('');
   const [laneId, setLaneId] = useState('');
+  const [workHours, setWorkHours] = useState<string>('');
+  const [skillLevel, setSkillLevel] = useState<Process['skillLevel']>('-');
+  const [systemName, setSystemName] = useState('');
+  const [parallelAllowed, setParallelAllowed] = useState(false);
   const [bpmnElement, setBpmnElement] = useState<BpmnElementType>('task');
   const [taskType, setTaskType] = useState<BpmnTaskType>('userTask');
   const [gatewayType, setGatewayType] = useState<GatewayType>('exclusive');
@@ -95,12 +115,36 @@ export function ProcessFormModal({
   const [conditionalFlows, setConditionalFlows] = useState<ConditionalFlow[]>([]);
   const [messageFlows, setMessageFlows] = useState<MessageFlow[]>([]);
   const [customColumnValues, setCustomColumnValues] = useState<Record<string, any>>({});
+  const [issueDetail, setIssueDetail] = useState('');
+  const [issueCategory, setIssueCategory] = useState('');
+  const [countermeasurePolicy, setCountermeasurePolicy] = useState('');
+  const [issueWorkHours, setIssueWorkHours] = useState<string>('');
+  const [timeReductionHours, setTimeReductionHours] = useState<string>('');
+  const [rateReductionPercent, setRateReductionPercent] = useState<string>('');
+
+  const existingLargeNames = Array.from(new Set(processes.map(p => p.largeName).filter(Boolean))) as string[];
+  const existingMediumNames = Array.from(new Set(processes.map(p => p.mediumName).filter(Boolean))) as string[];
+  const existingSmallNames = Array.from(new Set(processes.map(p => p.smallName).filter(Boolean))) as string[];
 
   // 編集時の初期値設定
   useEffect(() => {
     if (editingProcess) {
       setName(editingProcess.name);
+      setMediumName(editingProcess.mediumName || '');
+      setSmallName(editingProcess.smallName || '');
+      setDetailName(editingProcess.detailName || '');
+      setParentLargeName(editingProcess.largeName || '');
+      setParentMediumName(editingProcess.mediumName || '');
+      setParentSmallName(editingProcess.smallName || '');
       setLaneId(editingProcess.laneId);
+      setWorkHours(
+        editingProcess.workSeconds !== undefined && editingProcess.workSeconds !== null
+          ? String(editingProcess.workSeconds / 3600)
+          : ''
+      );
+      setSkillLevel(editingProcess.skillLevel || '-');
+      setSystemName(editingProcess.systemName || '');
+      setParallelAllowed(!!editingProcess.parallelAllowed);
       setBpmnElement(editingProcess.bpmnElement);
       setTaskType(editingProcess.taskType || 'userTask');
       setGatewayType(editingProcess.gatewayType || 'exclusive');
@@ -114,10 +158,38 @@ export function ProcessFormModal({
       setConditionalFlows(editingProcess.conditionalFlows || []);
       setMessageFlows(editingProcess.messageFlows || []);
       setCustomColumnValues(editingProcess.customColumns || {});
+      setIssueDetail(editingProcess.issueDetail || '');
+      setIssueCategory(editingProcess.issueCategory || '');
+      setCountermeasurePolicy(editingProcess.countermeasurePolicy || '');
+      setIssueWorkHours(
+        editingProcess.issueWorkSeconds !== undefined && editingProcess.issueWorkSeconds !== null
+          ? String(editingProcess.issueWorkSeconds / 3600)
+          : ''
+      );
+      setTimeReductionHours(
+        editingProcess.timeReductionSeconds !== undefined && editingProcess.timeReductionSeconds !== null
+          ? String(editingProcess.timeReductionSeconds / 3600)
+          : ''
+      );
+      setRateReductionPercent(
+        editingProcess.rateReductionPercent !== undefined && editingProcess.rateReductionPercent !== null
+          ? String(editingProcess.rateReductionPercent)
+          : ''
+      );
     } else {
       // 新規作成時はリセット
       setName('');
+      setMediumName('');
+      setSmallName('');
+      setDetailName('');
+      setParentLargeName('');
+      setParentMediumName('');
+      setParentSmallName('');
       setLaneId(swimlanes[0]?.id || '');
+      setWorkHours('');
+      setSkillLevel('-');
+      setSystemName('');
+      setParallelAllowed(false);
       setBpmnElement('task');
       setTaskType('userTask');
       setGatewayType('exclusive');
@@ -131,40 +203,101 @@ export function ProcessFormModal({
       setConditionalFlows([]);
       setMessageFlows([]);
       setCustomColumnValues({});
-      setMessageFlows([]);
+      setIssueDetail('');
+      setIssueCategory('');
+      setCountermeasurePolicy('');
+      setIssueWorkHours('');
+      setTimeReductionHours('');
+      setRateReductionPercent('');
     }
   }, [editingProcess, swimlanes, isOpen]);
 
   // フォーム送信
   const handleSubmit = async () => {
-    // バリデーション
-    if (!name.trim()) {
-      showToast('error', '工程名を入力してください');
-      return;
+    const isEditing = !!editingProcess;
+    const errors: string[] = [];
+    const requiresMedium = ['medium', 'small', 'detail'].includes(processTable.level);
+    const requiresSmall = ['small', 'detail'].includes(processTable.level);
+    const requiresDetail = processTable.level === 'detail';
+
+    const largeNameValue = name.trim();
+    const mediumNameValue = mediumName.trim();
+    const smallNameValue = smallName.trim();
+    const detailNameValue = detailName.trim();
+    const parentLargeNameValue = parentLargeName.trim();
+    const parentMediumNameValue = parentMediumName.trim();
+    const parentSmallNameValue = parentSmallName.trim();
+
+    const currentNameValue = (() => {
+      if (processTable.level === 'medium') return mediumNameValue;
+      if (processTable.level === 'small') return smallNameValue;
+      if (processTable.level === 'detail') return detailNameValue;
+      return largeNameValue;
+    })();
+    const workHoursNumber = workHours.trim() === '' ? undefined : Number(workHours);
+    const issueWorkHoursNumber = issueWorkHours.trim() === '' ? undefined : Number(issueWorkHours);
+    const timeReductionHoursNumber = timeReductionHours.trim() === '' ? undefined : Number(timeReductionHours);
+    const rateReductionPercentNumber = rateReductionPercent.trim() === '' ? undefined : Number(rateReductionPercent);
+
+    if (!currentNameValue) errors.push('工程名は必須です');
+    if (!laneId) errors.push('スイムレーンを選択してください');
+    if (workHours.trim() !== '' && Number.isNaN(workHoursNumber)) errors.push('工数は数値で入力してください');
+
+    if (processTable.isInvestigation) {
+      if (issueWorkHours.trim() !== '' && Number.isNaN(issueWorkHoursNumber as number)) errors.push('課題工数は数値で入力してください');
+      if (timeReductionHours.trim() !== '' && Number.isNaN(timeReductionHoursNumber as number)) errors.push('時間削減しろは数値で入力してください');
+      if (rateReductionPercent.trim() !== '' && Number.isNaN(rateReductionPercentNumber as number)) errors.push('割合削減しろは数値で入力してください');
     }
-    if (!laneId) {
-      showToast('error', 'スイムレーンを選択してください');
+
+    if (errors.length > 0) {
+      showToast('error', errors.join('\n'));
       return;
     }
 
+    let resolvedLargeName = processTable.level === 'large' ? currentNameValue : parentLargeNameValue || undefined;
+    let resolvedMediumName = processTable.level === 'medium' ? currentNameValue : mediumNameValue || parentMediumNameValue || undefined;
+    let resolvedSmallName = processTable.level === 'small' ? currentNameValue : smallNameValue || parentSmallNameValue || undefined;
+    let resolvedDetailName = processTable.level === 'detail' ? currentNameValue : detailNameValue || undefined;
+
     setIsSubmitting(true);
     try {
+      const normalizedSystemName = systemName.trim() === '' ? null : systemName.trim();
+      const normalizedDocumentation = documentation.trim() === '' ? null : documentation.trim();
+      const normalizedEventDetails = eventDetails.trim() === '' ? null : eventDetails.trim();
+      const normalizedIssueDetail = issueDetail.trim() === '' ? null : issueDetail.trim();
+      const normalizedIssueCategory = issueCategory.trim() === '' ? null : issueCategory.trim();
+      const normalizedCountermeasurePolicy = countermeasurePolicy.trim() === '' ? null : countermeasurePolicy.trim();
+
       const data: Partial<Process> = {
-        name: name.trim(),
+        name: currentNameValue,
+        largeName: resolvedLargeName,
+        mediumName: resolvedMediumName,
+        smallName: resolvedSmallName,
+        detailName: resolvedDetailName,
         laneId,
+        workSeconds: workHoursNumber !== undefined ? workHoursNumber * 3600 : isEditing ? null : undefined,
+        skillLevel: skillLevel === '-' ? undefined : skillLevel,
+        systemName: normalizedSystemName,
+        parallelAllowed,
         bpmnElement,
         taskType: bpmnElement === 'task' ? taskType : undefined,
         gatewayType: bpmnElement === 'gateway' ? gatewayType : undefined,
         eventType: bpmnElement === 'event' ? eventType : undefined,
         intermediateEventType: bpmnElement === 'event' && eventType === 'intermediate' ? intermediateEventType : undefined,
-        eventDetails: bpmnElement === 'event' && eventDetails.trim() ? eventDetails.trim() : undefined,
-        documentation: documentation.trim() || undefined,
-        beforeProcessIds: beforeProcessIds.length > 0 ? beforeProcessIds : undefined,
+        eventDetails: bpmnElement === 'event' ? normalizedEventDetails : undefined,
+        documentation: normalizedDocumentation,
+        beforeProcessIds: beforeProcessIds,
         inputDataObjects: inputDataObjects.length > 0 ? inputDataObjects : undefined,
         outputDataObjects: outputDataObjects.length > 0 ? outputDataObjects : undefined,
         conditionalFlows: conditionalFlows.length > 0 ? conditionalFlows : undefined,
         messageFlows: messageFlows.length > 0 ? messageFlows : undefined,
         customColumns: Object.keys(customColumnValues).length > 0 ? customColumnValues : undefined,
+        issueDetail: normalizedIssueDetail,
+        issueCategory: normalizedIssueCategory,
+        countermeasurePolicy: normalizedCountermeasurePolicy,
+        issueWorkSeconds: issueWorkHoursNumber !== undefined ? issueWorkHoursNumber * 3600 : isEditing ? null : undefined,
+        timeReductionSeconds: timeReductionHoursNumber !== undefined ? timeReductionHoursNumber * 3600 : isEditing ? null : undefined,
+        rateReductionPercent: rateReductionPercentNumber,
       };
 
       await onSubmit(data);
@@ -182,6 +315,15 @@ export function ProcessFormModal({
   const availableBeforeProcesses = processes.filter(
     (p) => p.id !== editingProcess?.id && !editingProcess?.nextProcessIds?.includes(p.id)
   );
+
+  // 入力状態に応じたボタン活性判定
+  const currentNameValueForDisable = (() => {
+    if (processTable.level === 'medium') return mediumName.trim();
+    if (processTable.level === 'small') return smallName.trim();
+    if (processTable.level === 'detail') return detailName.trim();
+    return name.trim();
+  })();
+  const isCreateDisabled = !currentNameValueForDisable || !laneId;
 
   return (
     <Modal
@@ -209,51 +351,173 @@ export function ProcessFormModal({
               >
                 <Tab key="basic" title="基本情報">
                   <div className="space-y-4 py-4">
-                    <Input
-                      label="工程名"
-                      placeholder="例: 要件ヒアリング"
-                      value={name}
-                      onValueChange={setName}
-                      isRequired
-                      autoFocus
-                    />
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <Input
+                        label="工数 (時間)"
+                        placeholder="例: 1.5"
+                        type="number"
+                        value={workHours}
+                        onValueChange={setWorkHours}
+                      />
+                      <Input
+                        label={
+                          processTable.level === 'large'
+                            ? '大工程名'
+                            : processTable.level === 'medium'
+                              ? '中工程名'
+                              : processTable.level === 'small'
+                                ? '小工程名'
+                                : '詳細工程名'
+                        }
+                        placeholder="工程名を入力"
+                        value={processTable.level === 'medium' ? mediumName : processTable.level === 'small' ? smallName : processTable.level === 'detail' ? detailName : name}
+                        onValueChange={(val) => {
+                          if (processTable.level === 'medium') setMediumName(val);
+                          else if (processTable.level === 'small') setSmallName(val);
+                          else if (processTable.level === 'detail') setDetailName(val);
+                          else setName(val);
+                        }}
+                        isRequired
+                        autoFocus
+                      />
+                    </div>
 
-                    <Select
-                      label="スイムレーン"
-                      placeholder="スイムレーンを選択"
-                      selectedKeys={laneId ? [laneId] : []}
-                      onSelectionChange={(keys) => {
-                        const selected = Array.from(keys)[0];
-                        setLaneId(selected as string);
-                      }}
-                      isRequired
-                      renderValue={(items) => {
-                        return items.map((item) => {
-                          const swimlane = swimlanes.find(sw => sw.id === item.key);
-                          return swimlane ? (
-                            <div key={item.key} className="flex items-center gap-2">
+                    {/* 親工程名入力 */}
+                    {(processTable.level === 'medium' || processTable.level === 'small' || processTable.level === 'detail') && (
+                      <div className="space-y-3">
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <Input
+                            label="親工程名（大工程）"
+                            placeholder="既存の大工程名を選択または入力"
+                            value={parentLargeName}
+                            onValueChange={setParentLargeName}
+                          />
+                          {existingLargeNames.length > 0 && (
+                            <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500">
+                              <span className="text-gray-600">候補:</span>
+                              {existingLargeNames.map((n) => (
+                                <Button key={n} size="sm" variant="light" onPress={() => setParentLargeName(n)}>
+                                  {n}
+                                </Button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {(processTable.level === 'small' || processTable.level === 'detail') && (
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <Input
+                              label="親工程名（中工程）"
+                              placeholder="既存の中工程名を選択または入力"
+                              value={parentMediumName}
+                              onValueChange={setParentMediumName}
+                            />
+                            {existingMediumNames.length > 0 && (
+                              <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500">
+                                <span className="text-gray-600">候補:</span>
+                                {existingMediumNames.map((n) => (
+                                  <Button key={n} size="sm" variant="light" onPress={() => setParentMediumName(n)}>
+                                    {n}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {processTable.level === 'detail' && (
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <Input
+                              label="親工程名（小工程）"
+                              placeholder="既存の小工程名を選択または入力"
+                              value={parentSmallName}
+                              onValueChange={setParentSmallName}
+                            />
+                            {existingSmallNames.length > 0 && (
+                              <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500">
+                                <span className="text-gray-600">候補:</span>
+                                {existingSmallNames.map((n) => (
+                                  <Button key={n} size="sm" variant="light" onPress={() => setParentSmallName(n)}>
+                                    {n}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <Select
+                        label="スイムレーン"
+                        placeholder="スイムレーンを選択"
+                        selectedKeys={laneId ? [laneId] : []}
+                        onSelectionChange={(keys) => {
+                          const selected = Array.from(keys)[0];
+                          setLaneId(selected as string);
+                        }}
+                        isRequired
+                        renderValue={(items) => {
+                          return items.map((item) => {
+                            const swimlane = swimlanes.find(sw => sw.id === item.key);
+                            return swimlane ? (
+                              <div key={item.key} className="flex items-center gap-2">
+                                <div
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: swimlane.color }}
+                                />
+                                {swimlane.name}
+                              </div>
+                            ) : null;
+                          });
+                        }}
+                      >
+                        {swimlanes.map((sw) => (
+                          <SelectItem key={sw.id} textValue={sw.name}>
+                            <div className="flex items-center gap-2">
                               <div
                                 className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: swimlane.color }}
+                                style={{ backgroundColor: sw.color }}
                               />
-                              {swimlane.name}
+                              {sw.name}
                             </div>
-                          ) : null;
-                        });
-                      }}
+                          </SelectItem>
+                        ))}
+                      </Select>
+
+                      <Select
+                        label="スキルレベル"
+                        placeholder="スキルレベルを選択"
+                        selectedKeys={[skillLevel || '-']}
+                        onSelectionChange={(keys) => {
+                          const selected = Array.from(keys)[0] as Process['skillLevel'];
+                          setSkillLevel(selected);
+                        }}
+                      >
+                        {SKILL_LEVELS.map((level) => (
+                          <SelectItem key={level.value || '-'} textValue={level.label}>
+                            {level.label}
+                          </SelectItem>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <Input
+                        label="システム/ツール名"
+                        placeholder="例: Salesforce"
+                        value={systemName}
+                        onValueChange={setSystemName}
+                      />
+                    </div>
+
+                    <Checkbox
+                      isSelected={parallelAllowed}
+                      onValueChange={setParallelAllowed}
                     >
-                      {swimlanes.map((sw) => (
-                        <SelectItem key={sw.id} textValue={sw.name}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: sw.color }}
-                            />
-                            {sw.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </Select>
+                      並列実行を許可
+                    </Checkbox>
 
                     <Select
                       label="BPMN要素タイプ"
@@ -371,6 +635,54 @@ export function ProcessFormModal({
                     />
                   </div>
                 </Tab>
+
+                {processTable.isInvestigation && (
+                  <Tab key="investigation" title="調査項目">
+                    <div className="space-y-4 py-4">
+                      <Textarea
+                        label="課題事象"
+                        placeholder="発生している課題の内容"
+                        value={issueDetail}
+                        onValueChange={setIssueDetail}
+                      />
+                      <Input
+                        label="課題分類"
+                        placeholder="例: 品質 / 生産性 / コスト"
+                        value={issueCategory}
+                        onValueChange={setIssueCategory}
+                      />
+                      <Textarea
+                        label="対策方針"
+                        placeholder="対応方針や対策案を記載"
+                        value={countermeasurePolicy}
+                        onValueChange={setCountermeasurePolicy}
+                      />
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <Input
+                          label="課題工数 (時間)"
+                          type="number"
+                          placeholder="例: 1.5"
+                          value={issueWorkHours}
+                          onValueChange={setIssueWorkHours}
+                        />
+                        <Input
+                          label="時間削減しろ (時間)"
+                          type="number"
+                          placeholder="例: 0.5"
+                          value={timeReductionHours}
+                          onValueChange={setTimeReductionHours}
+                        />
+                        <Input
+                          label="割合削減しろ (%)"
+                          type="number"
+                          placeholder="例: 15"
+                          value={rateReductionPercent}
+                          onValueChange={setRateReductionPercent}
+                        />
+                      </div>
+                    </div>
+                  </Tab>
+                )}
 
                 <Tab key="flow" title="フロー">
                   <div className="space-y-4 py-4">
@@ -699,7 +1011,7 @@ export function ProcessFormModal({
                 color="primary"
                 onPress={handleSubmit}
                 isLoading={isSubmitting}
-                isDisabled={!name || !laneId}
+                isDisabled={isCreateDisabled}
               >
                 {editingProcess ? '更新' : '作成'}
               </Button>

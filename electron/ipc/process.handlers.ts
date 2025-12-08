@@ -16,11 +16,28 @@ interface Process {
   id: string;
   processTableId: string;
   name: string;
+  largeName?: string;
+  mediumName?: string;
+  smallName?: string;
+  detailName?: string;
   laneId: string;
+  displayId: number;
+  workSeconds?: number;
+  workUnitPref?: string;
+  skillLevel?: '-' | 'L' | 'M' | 'H';
+  systemName?: string;
+  parallelAllowed?: boolean;
+  parentProcessId?: string;
   bpmnElement: BpmnElementType;
   taskType: BpmnTaskType;
   beforeProcessIds?: string[];
   nextProcessIds?: string[];
+  issueDetail?: string;
+  issueCategory?: string;
+  countermeasurePolicy?: string;
+  issueWorkSeconds?: number;
+  timeReductionSeconds?: number;
+  rateReductionPercent?: number;
   documentation?: string;
   gatewayType?: GatewayType;
   conditionalFlows?: Array<{ condition: string; targetProcessId: string }>;
@@ -40,10 +57,27 @@ interface Process {
 interface CreateProcessDto {
   processTableId: string;
   name: string;
+  largeName?: string;
+  mediumName?: string;
+  smallName?: string;
+  detailName?: string;
   laneId: string;
+  displayId?: number;
+  workSeconds?: number;
+  workUnitPref?: string;
+  skillLevel?: '-' | 'L' | 'M' | 'H';
+  systemName?: string;
+  parallelAllowed?: boolean;
+  parentProcessId?: string;
   bpmnElement?: BpmnElementType;
   taskType?: BpmnTaskType;
   beforeProcessIds?: string[];
+  issueDetail?: string;
+  issueCategory?: string;
+  countermeasurePolicy?: string;
+  issueWorkSeconds?: number;
+  timeReductionSeconds?: number;
+  rateReductionPercent?: number;
   documentation?: string;
   gatewayType?: GatewayType;
   conditionalFlows?: Array<{ condition: string; targetProcessId: string }>;
@@ -60,10 +94,27 @@ interface CreateProcessDto {
 
 interface UpdateProcessDto {
   name?: string;
+  largeName?: string;
+  mediumName?: string;
+  smallName?: string;
+  detailName?: string;
   laneId?: string;
+  displayId?: number;
+  workSeconds?: number;
+  workUnitPref?: string;
+  skillLevel?: '-' | 'L' | 'M' | 'H';
+  systemName?: string;
+  parallelAllowed?: boolean;
+  parentProcessId?: string;
   bpmnElement?: BpmnElementType;
   taskType?: BpmnTaskType;
   beforeProcessIds?: string[];
+  issueDetail?: string;
+  issueCategory?: string;
+  countermeasurePolicy?: string;
+  issueWorkSeconds?: number;
+  timeReductionSeconds?: number;
+  rateReductionPercent?: number;
   documentation?: string;
   gatewayType?: GatewayType;
   conditionalFlows?: Array<{ condition: string; targetProcessId: string }>;
@@ -93,6 +144,80 @@ interface DeleteProcessResult {
   nextProcessIdsUpdated: boolean;
 }
 
+interface ProcessTableMeta {
+  id: string;
+  level: 'large' | 'medium' | 'small' | 'detail';
+  isInvestigation: boolean;
+}
+
+function validateRequiredFields(data: CreateProcessDto | UpdateProcessDto, tableMeta: ProcessTableMeta) {
+  const requiredMessages: string[] = [];
+  const isCreate = (data as CreateProcessDto).processTableId !== undefined;
+  const hasValue = (v: any) => v !== undefined && v !== null && `${v}`.trim() !== '';
+  const hasProvided = (key: keyof (CreateProcessDto & UpdateProcessDto)) =>
+    Object.prototype.hasOwnProperty.call(data, key) && (data as any)[key] !== undefined;
+
+  const fieldLabels: Record<'largeName' | 'mediumName' | 'smallName' | 'detailName', string> = {
+    largeName: '大工程名は必須です',
+    mediumName: '中工程名は必須です',
+    smallName: '小工程名は必須です',
+    detailName: '詳細工程名は必須です',
+  };
+
+  const levelRequirements: Record<ProcessTableMeta['level'], Array<keyof typeof fieldLabels>> = {
+    large: ['largeName'],
+    medium: ['largeName', 'mediumName'],
+    small: ['largeName', 'mediumName', 'smallName'],
+    detail: ['largeName', 'mediumName', 'smallName', 'detailName'],
+  };
+
+  const fieldValues: Record<keyof typeof fieldLabels, any> = {
+    largeName: (data as any).largeName ?? (data as any).name,
+    mediumName: (data as any).mediumName,
+    smallName: (data as any).smallName,
+    detailName: (data as any).detailName,
+  };
+
+  levelRequirements[tableMeta.level].forEach((key) => {
+    const value = fieldValues[key];
+    if (isCreate) {
+      if (!hasValue(value)) requiredMessages.push(fieldLabels[key]);
+    } else if (hasProvided(key) && !hasValue(value)) {
+      requiredMessages.push(fieldLabels[key]);
+    }
+  });
+
+  // Common required
+  if (isCreate && !hasValue((data as CreateProcessDto).laneId)) requiredMessages.push('スイムレーンは必須です');
+
+  // Investigation required
+  if (tableMeta.isInvestigation) {
+    const investigationFields: Array<{ key: keyof (CreateProcessDto & UpdateProcessDto); label: string }> = [
+      { key: 'issueDetail', label: '課題事象は必須です' },
+      { key: 'issueCategory', label: '課題分類は必須です' },
+      { key: 'countermeasurePolicy', label: '対策方針は必須です' },
+      { key: 'issueWorkSeconds', label: '課題工数は必須です' },
+      { key: 'timeReductionSeconds', label: '時間削減しろは必須です' },
+      { key: 'rateReductionPercent', label: '割合削減しろは必須です' },
+    ];
+
+    investigationFields.forEach(({ key, label }) => {
+      const value = (data as any)[key];
+      if (isCreate) {
+        if (!hasValue(value)) requiredMessages.push(label);
+      } else if (hasProvided(key) && !hasValue(value)) {
+        requiredMessages.push(label);
+      }
+    });
+  }
+
+  if (requiredMessages.length > 0) {
+    const err = new Error(requiredMessages.join('; '));
+    (err as any).code = 'VALIDATION_ERROR';
+    throw err;
+  }
+}
+
 /**
  * DB行をProcessオブジェクトに変換
  */
@@ -101,11 +226,28 @@ function rowToProcess(row: any): Process {
     id: row.id,
     processTableId: row.process_table_id,
     name: row.name,
+    largeName: row.large_name || undefined,
+    mediumName: row.medium_name || undefined,
+    smallName: row.small_name || undefined,
+    detailName: row.detail_name || undefined,
     laneId: row.lane_id,
+    displayId: row.display_id,
+    workSeconds: row.work_seconds ?? undefined,
+    workUnitPref: row.work_unit_pref || undefined,
+    skillLevel: row.skill_level || undefined,
+    systemName: row.system_name || undefined,
+    parallelAllowed: !!row.parallel_allowed,
+    parentProcessId: row.parent_process_id || undefined,
     bpmnElement: row.bpmn_element as BpmnElementType,
     taskType: row.task_type as BpmnTaskType,
     beforeProcessIds: row.before_process_ids ? JSON.parse(row.before_process_ids) : undefined,
     nextProcessIds: row.next_process_ids ? JSON.parse(row.next_process_ids) : undefined,
+    issueDetail: row.issue_detail || undefined,
+    issueCategory: row.issue_category || undefined,
+    countermeasurePolicy: row.countermeasure_policy || undefined,
+    issueWorkSeconds: row.issue_work_seconds ?? undefined,
+    timeReductionSeconds: row.time_reduction_seconds ?? undefined,
+    rateReductionPercent: row.rate_reduction_percent ?? undefined,
     documentation: row.documentation || undefined,
     gatewayType: row.gateway_type as GatewayType | undefined,
     conditionalFlows: row.conditional_flows ? JSON.parse(row.conditional_flows) : undefined,
@@ -172,6 +314,12 @@ export function registerProcessHandlers(): void {
       const now = Date.now();
       const processId = uuidv4();
 
+      // processTable metadata
+      const table = db.prepare('SELECT id, level, is_investigation FROM process_tables WHERE id = ?').get(data.processTableId) as ProcessTableMeta | undefined;
+      if (!table) throw new Error('ProcessTable not found');
+
+      validateRequiredFields(data, table);
+
       // displayOrderが指定されていない場合、同じ工程表内の最大値+1を取得
       let displayOrder = data.displayOrder ?? 0;
       if (data.displayOrder === undefined) {
@@ -183,21 +331,44 @@ export function registerProcessHandlers(): void {
       // 工程作成
       db.prepare(`
         INSERT INTO processes (
-          id, process_table_id, name, lane_id, bpmn_element, task_type,
+          id, process_table_id,
+          name, large_name, medium_name, small_name, detail_name,
+          lane_id, bpmn_element, task_type, bpmn_position, bpmn_element_type,
+          display_id, work_seconds, work_unit_pref, skill_level, system_name, parallel_allowed, parent_process_id,
+          issue_detail, issue_category, countermeasure_policy, issue_work_seconds, time_reduction_seconds, rate_reduction_percent,
           before_process_ids, documentation,
           gateway_type, conditional_flows,
           event_type, intermediate_event_type, event_details,
           input_data_objects, output_data_objects,
           message_flows, artifacts,
           custom_columns, display_order, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         processId,
         data.processTableId,
         data.name,
+        data.largeName || null,
+        data.mediumName || null,
+        data.smallName || null,
+        data.detailName || null,
         data.laneId,
         data.bpmnElement || 'task',
         data.taskType || 'userTask',
+        null,
+        null,
+        data.displayId ?? displayOrder,
+        data.workSeconds ?? null,
+        data.workUnitPref || null,
+        data.skillLevel || null,
+        data.systemName || null,
+        data.parallelAllowed ? 1 : 0,
+        data.parentProcessId || null,
+        data.issueDetail || null,
+        data.issueCategory || null,
+        data.countermeasurePolicy || null,
+        data.issueWorkSeconds ?? null,
+        data.timeReductionSeconds ?? null,
+        data.rateReductionPercent ?? null,
         data.beforeProcessIds ? JSON.stringify(data.beforeProcessIds) : null,
         data.documentation || null,
         data.gatewayType || null,
@@ -277,6 +448,11 @@ export function registerProcessHandlers(): void {
       const db = getDatabase();
       const now = Date.now();
 
+      const table = db.prepare(`SELECT pt.id, pt.level, pt.is_investigation FROM process_tables pt JOIN processes p ON p.process_table_id = pt.id WHERE p.id = ?`).get(processId) as ProcessTableMeta | undefined;
+      if (!table) throw new Error('ProcessTable not found for process');
+
+      validateRequiredFields(data, table);
+
       const updates: string[] = [];
       const values: any[] = [];
 
@@ -284,9 +460,53 @@ export function registerProcessHandlers(): void {
         updates.push('name = ?');
         values.push(data.name);
       }
+      if (data.largeName !== undefined) {
+        updates.push('large_name = ?');
+        values.push(data.largeName || null);
+      }
+      if (data.mediumName !== undefined) {
+        updates.push('medium_name = ?');
+        values.push(data.mediumName || null);
+      }
+      if (data.smallName !== undefined) {
+        updates.push('small_name = ?');
+        values.push(data.smallName || null);
+      }
+      if (data.detailName !== undefined) {
+        updates.push('detail_name = ?');
+        values.push(data.detailName || null);
+      }
       if (data.laneId !== undefined) {
         updates.push('lane_id = ?');
         values.push(data.laneId);
+      }
+      if (data.displayId !== undefined) {
+        updates.push('display_id = ?');
+        values.push(data.displayId);
+      }
+      if (data.workSeconds !== undefined) {
+        updates.push('work_seconds = ?');
+        values.push(data.workSeconds ?? null);
+      }
+      if (data.workUnitPref !== undefined) {
+        updates.push('work_unit_pref = ?');
+        values.push(data.workUnitPref || null);
+      }
+      if (data.skillLevel !== undefined) {
+        updates.push('skill_level = ?');
+        values.push(data.skillLevel || null);
+      }
+      if (data.systemName !== undefined) {
+        updates.push('system_name = ?');
+        values.push(data.systemName || null);
+      }
+      if (data.parallelAllowed !== undefined) {
+        updates.push('parallel_allowed = ?');
+        values.push(data.parallelAllowed ? 1 : 0);
+      }
+      if (data.parentProcessId !== undefined) {
+        updates.push('parent_process_id = ?');
+        values.push(data.parentProcessId || null);
       }
       if (data.bpmnElement !== undefined) {
         updates.push('bpmn_element = ?');
@@ -299,6 +519,30 @@ export function registerProcessHandlers(): void {
       if (data.beforeProcessIds !== undefined) {
         updates.push('before_process_ids = ?');
         values.push(data.beforeProcessIds ? JSON.stringify(data.beforeProcessIds) : null);
+      }
+      if (data.issueDetail !== undefined) {
+        updates.push('issue_detail = ?');
+        values.push(data.issueDetail || null);
+      }
+      if (data.issueCategory !== undefined) {
+        updates.push('issue_category = ?');
+        values.push(data.issueCategory || null);
+      }
+      if (data.countermeasurePolicy !== undefined) {
+        updates.push('countermeasure_policy = ?');
+        values.push(data.countermeasurePolicy || null);
+      }
+      if (data.issueWorkSeconds !== undefined) {
+        updates.push('issue_work_seconds = ?');
+        values.push(data.issueWorkSeconds ?? null);
+      }
+      if (data.timeReductionSeconds !== undefined) {
+        updates.push('time_reduction_seconds = ?');
+        values.push(data.timeReductionSeconds ?? null);
+      }
+      if (data.rateReductionPercent !== undefined) {
+        updates.push('rate_reduction_percent = ?');
+        values.push(data.rateReductionPercent ?? null);
       }
       if (data.documentation !== undefined) {
         updates.push('documentation = ?');
@@ -602,51 +846,73 @@ async function syncProcessTableToBpmn(processTableId: string): Promise<void> {
   const path = require('path');
   const bpmnExporterPath = path.join(__dirname, '../../src/lib/bpmn-xml-exporter');
   const { exportProcessTableToBpmnXml } = require(bpmnExporterPath);
+  let bpmnXml = '';
+  let exportSummary: { processCount: number; laneCount: number } | null = null;
+  try {
+    const result = await exportProcessTableToBpmnXml({
+      processTable: {
+        id: processTable.id,
+        projectId: processTable.project_id,
+        name: processTable.name,
+        level: processTable.level,
+        description: processTable.description,
+        isInvestigation: !!processTable.is_investigation,
+        displayOrder: processTable.display_order,
+        createdAt: new Date(processTable.created_at),
+        updatedAt: new Date(processTable.updated_at),
+      },
+      processes: processes.map((p: any) => ({
+        id: p.id,
+        processTableId: p.process_table_id,
+        laneId: p.lane_id,
+        name: p.name,
+        displayId: p.display_id,
+        workSeconds: p.work_seconds ?? undefined,
+        workUnitPref: p.work_unit_pref ?? undefined,
+        skillLevel: p.skill_level ?? undefined,
+        systemName: p.system_name ?? undefined,
+        parallelAllowed: !!p.parallel_allowed,
+        parentProcessId: p.parent_process_id ?? undefined,
+        issueDetail: p.issue_detail ?? undefined,
+        issueCategory: p.issue_category ?? undefined,
+        countermeasurePolicy: p.countermeasure_policy ?? undefined,
+        issueWorkSeconds: p.issue_work_seconds ?? undefined,
+        timeReductionSeconds: p.time_reduction_seconds ?? undefined,
+        rateReductionPercent: p.rate_reduction_percent ?? undefined,
+        bpmnElement: (p.bpmn_element as 'task' | 'event' | 'gateway') || 'task',
+        taskType: p.task_type || 'userTask',
+        beforeProcessIds: p.before_process_ids ? JSON.parse(p.before_process_ids) : [],
+        nextProcessIds: p.next_process_ids ? JSON.parse(p.next_process_ids) : [],
+        gatewayType: p.gateway_type || undefined,
+        conditionalFlows: p.conditional_flows ? JSON.parse(p.conditional_flows) : undefined,
+        eventType: p.event_type || undefined,
+        intermediateEventType: p.intermediate_event_type || undefined,
+        eventDetails: p.event_details || undefined,
+        documentation: p.documentation || undefined,
+        customColumns: p.custom_columns ? JSON.parse(p.custom_columns) : undefined,
+        displayOrder: p.display_order,
+        createdAt: new Date(p.created_at),
+        updatedAt: new Date(p.updated_at),
+      })),
+      swimlanes: swimlanes.map((s: any) => ({
+        id: s.id,
+        processTableId: s.process_table_id,
+        name: s.name,
+        color: s.color,
+        order: s.order_num,
+        createdAt: new Date(s.created_at),
+        updatedAt: new Date(s.updated_at),
+      })),
+      autoLayout: true,
+    });
 
-  const result = await exportProcessTableToBpmnXml({
-    processTable: {
-      id: processTable.id,
-      projectId: processTable.project_id,
-      name: processTable.name,
-      level: processTable.level,
-      description: processTable.description,
-      displayOrder: processTable.display_order,
-      createdAt: new Date(processTable.created_at),
-      updatedAt: new Date(processTable.updated_at),
-    },
-    processes: processes.map((p: any) => ({
-      id: p.id,
-      processTableId: p.process_table_id,
-      laneId: p.lane_id,
-      name: p.name,
-      bpmnElement: (p.bpmn_element as 'task' | 'event' | 'gateway') || 'task',
-      taskType: p.task_type || 'userTask',
-      beforeProcessIds: p.before_process_ids ? JSON.parse(p.before_process_ids) : [],
-      nextProcessIds: p.next_process_ids ? JSON.parse(p.next_process_ids) : [],
-      gatewayType: p.gateway_type || undefined,
-      conditionalFlows: p.conditional_flows ? JSON.parse(p.conditional_flows) : undefined,
-      eventType: p.event_type || undefined,
-      intermediateEventType: p.intermediate_event_type || undefined,
-      eventDetails: p.event_details || undefined,
-      documentation: p.documentation || undefined,
-      customColumns: p.custom_columns ? JSON.parse(p.custom_columns) : undefined,
-      displayOrder: p.display_order,
-      createdAt: new Date(p.created_at),
-      updatedAt: new Date(p.updated_at),
-    })),
-    swimlanes: swimlanes.map((s: any) => ({
-      id: s.id,
-      processTableId: s.process_table_id,
-      name: s.name,
-      color: s.color,
-      order: s.order_num,
-      createdAt: new Date(s.created_at),
-      updatedAt: new Date(s.updated_at),
-    })),
-    autoLayout: true,
-  });
-
-  const bpmnXml = result.xml;
+    bpmnXml = result.xml;
+    exportSummary = { processCount: result.processCount, laneCount: result.laneCount };
+  } catch (err) {
+    logger.error('Process', `Failed to export BPMN XML for processTable ${processTableId}`, err as Error);
+    // BPMN生成が失敗しても工程作成/更新は続行する
+    return;
+  }
 
   // sync_state更新
   const currentState = db.prepare(`
@@ -681,8 +947,8 @@ async function syncProcessTableToBpmn(processTableId: string): Promise<void> {
 
   logger.info('Process', 'ProcessTable → BPMN sync done (internal)', {
     processTableId,
-    processCount: result.processCount,
-    laneCount: result.laneCount,
+    processCount: exportSummary?.processCount,
+    laneCount: exportSummary?.laneCount,
     newVersion,
   });
 }

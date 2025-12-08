@@ -76,6 +76,7 @@ export interface ProcessTable {
   name: string;
   level: ProcessLevel;
   description?: string;
+  isInvestigation: boolean;
   displayOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -134,7 +135,30 @@ export interface Process {
   
   // 基本情報（必須）
   name: string;
+  largeName?: string;
+  mediumName?: string;
+  smallName?: string;
+  detailName?: string;
   laneId: string;  // SwimlaneのID（BPMN Laneに対応）
+  displayId: number;
+
+  // 工数（内部秒保持）
+  workSeconds?: number;
+  workUnitPref?: string;
+
+  // 属性
+  skillLevel?: '-' | 'L' | 'M' | 'H';
+  systemName?: string;
+  parallelAllowed?: boolean;
+  parentProcessId?: string;
+
+  // 調査モード
+  issueDetail?: string;
+  issueCategory?: string;
+  countermeasurePolicy?: string;
+  issueWorkSeconds?: number;
+  timeReductionSeconds?: number;
+  rateReductionPercent?: number;
   
   // BPMN要素タイプ
   bpmnElement: BpmnElementType;  // task, event, gateway
@@ -311,6 +335,7 @@ export interface CreateProcessTableDto {
   name: string;
   level: ProcessLevel;
   description?: string;
+  isInvestigation?: boolean;
   swimlanes?: Array<{ name: string; color?: string }>;
 }
 
@@ -318,13 +343,31 @@ export interface UpdateProcessTableDto {
   name?: string;
   level?: ProcessLevel;
   description?: string;
+  isInvestigation?: boolean;
 }
 
 export interface CreateProcessDto {
   processTableId: string;
   name: string;
+  largeName?: string;
+  mediumName?: string;
+  smallName?: string;
+  detailName?: string;
   swimlane: string;
   stepOrder: number;
+  displayId?: number;
+  workSeconds?: number;
+  workUnitPref?: string;
+  skillLevel?: '-' | 'L' | 'M' | 'H';
+  systemName?: string;
+  parallelAllowed?: boolean;
+  parentProcessId?: string;
+  issueDetail?: string;
+  issueCategory?: string;
+  countermeasurePolicy?: string;
+  issueWorkSeconds?: number;
+  timeReductionSeconds?: number;
+  rateReductionPercent?: number;
   taskType?: BpmnTaskType;
   documentation?: string;
   beforeProcessIds?: string[];
@@ -342,8 +385,25 @@ export interface CreateProcessDto {
 
 export interface UpdateProcessDto {
   name?: string;
+  largeName?: string;
+  mediumName?: string;
+  smallName?: string;
+  detailName?: string;
   swimlane?: string;
   stepOrder?: number;
+  displayId?: number;
+  workSeconds?: number;
+  workUnitPref?: string;
+  skillLevel?: '-' | 'L' | 'M' | 'H';
+  systemName?: string;
+  parallelAllowed?: boolean;
+  parentProcessId?: string;
+  issueDetail?: string;
+  issueCategory?: string;
+  countermeasurePolicy?: string;
+  issueWorkSeconds?: number;
+  timeReductionSeconds?: number;
+  rateReductionPercent?: number;
   taskType?: BpmnTaskType;
   documentation?: string;
   beforeProcessIds?: string[];

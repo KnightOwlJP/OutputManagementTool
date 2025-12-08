@@ -8,7 +8,9 @@ import type {
   DataObject,
   Manual,
   BpmnDiagram,
-  ProcessLevel 
+  ProcessLevel,
+  CreateProcessTableDto,
+  UpdateProcessTableDto,
 } from './models';
 
 export interface ElectronAPI {
@@ -28,10 +30,10 @@ export interface ElectronAPI {
   };
   // V2: ProcessTable API
   processTable: {
-    create: (data: any) => Promise<ProcessTable>;
+    create: (data: CreateProcessTableDto) => Promise<ProcessTable>;
     getByProject: (projectId: string) => Promise<ProcessTable[]>;
     getById: (processTableId: string) => Promise<ProcessTable | null>;
-    update: (processTableId: string, data: any) => Promise<ProcessTable>;
+    update: (processTableId: string, data: UpdateProcessTableDto) => Promise<ProcessTable>;
     delete: (processTableId: string) => Promise<any>;
     
     // スイムレーン管理
@@ -196,8 +198,25 @@ export interface UpdateProjectDto {
 export interface CreateProcessDto {
   processTableId: string;
   name: string;
+  largeName?: string;
+  mediumName?: string;
+  smallName?: string;
+  detailName?: string;
   laneId: string;
   bpmnElement?: 'task' | 'event' | 'gateway';
+  displayId?: number;
+  workSeconds?: number;
+  workUnitPref?: string;
+  skillLevel?: '-' | 'L' | 'M' | 'H';
+  systemName?: string;
+  parallelAllowed?: boolean;
+  parentProcessId?: string;
+  issueDetail?: string;
+  issueCategory?: string;
+  countermeasurePolicy?: string;
+  issueWorkSeconds?: number;
+  timeReductionSeconds?: number;
+  rateReductionPercent?: number;
   taskType?: 'userTask' | 'serviceTask' | 'manualTask' | 'scriptTask' | 'businessRuleTask' | 'sendTask' | 'receiveTask';
   beforeProcessIds?: string[];
   documentation?: string;
@@ -216,8 +235,25 @@ export interface CreateProcessDto {
 
 export interface UpdateProcessDto {
   name?: string;
+  largeName?: string;
+  mediumName?: string;
+  smallName?: string;
+  detailName?: string;
   laneId?: string;
   bpmnElement?: 'task' | 'event' | 'gateway';
+  displayId?: number;
+  workSeconds?: number;
+  workUnitPref?: string;
+  skillLevel?: '-' | 'L' | 'M' | 'H';
+  systemName?: string;
+  parallelAllowed?: boolean;
+  parentProcessId?: string;
+  issueDetail?: string;
+  issueCategory?: string;
+  countermeasurePolicy?: string;
+  issueWorkSeconds?: number;
+  timeReductionSeconds?: number;
+  rateReductionPercent?: number;
   taskType?: 'userTask' | 'serviceTask' | 'manualTask' | 'scriptTask' | 'businessRuleTask' | 'sendTask' | 'receiveTask';
   beforeProcessIds?: string[];
   documentation?: string;

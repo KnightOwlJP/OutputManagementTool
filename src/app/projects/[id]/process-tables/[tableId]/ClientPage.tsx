@@ -504,6 +504,7 @@ export function ProcessTableDetailClientPage() {
                   <ProcessManagement
                     projectId={projectId}
                     processTableId={processTableId}
+                    processTable={processTable}
                     swimlanes={swimlanes}
                     customColumns={customColumns}
                     dataObjects={dataObjects}

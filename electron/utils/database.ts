@@ -127,6 +127,7 @@ function createTables(): void {
       name TEXT NOT NULL,
       level TEXT NOT NULL CHECK(level IN ('large', 'medium', 'small', 'detail')),
       description TEXT,
+      is_investigation INTEGER NOT NULL DEFAULT 0,
       display_order INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
@@ -188,6 +189,10 @@ function createTables(): void {
       
       -- 基本情報（必須）
       name TEXT NOT NULL,
+      large_name TEXT,
+      medium_name TEXT,
+      small_name TEXT,
+      detail_name TEXT,
       lane_id TEXT NOT NULL,
       
       -- BPMN要素タイプ
@@ -197,6 +202,23 @@ function createTables(): void {
       -- Phase 9.1: BPMN位置情報（JSON: {x, y, width, height}）
       bpmn_position TEXT,
       bpmn_element_type TEXT,
+
+      -- 工程表カラム拡張
+      display_id INTEGER NOT NULL DEFAULT 0,
+      work_seconds INTEGER,
+      work_unit_pref TEXT,
+      skill_level TEXT CHECK(skill_level IN ('-', 'L', 'M', 'H')),
+      system_name TEXT,
+      parallel_allowed INTEGER NOT NULL DEFAULT 0,
+      parent_process_id TEXT,
+
+      -- 調査モード専用
+      issue_detail TEXT,
+      issue_category TEXT,
+      countermeasure_policy TEXT,
+      issue_work_seconds INTEGER,
+      time_reduction_seconds INTEGER,
+      rate_reduction_percent REAL,
       
       -- フロー制御
       before_process_ids TEXT,
@@ -554,6 +576,73 @@ function runMigrations(): void {
         }
         
         console.log('[Migration] v2_004_fix_data_objects_schema: Migration completed successfully');
+      }
+    },
+    {
+      version: 'v2_005_process_table_required_columns',
+      up: () => {
+        console.log('[Migration] v2_005_process_table_required_columns: Adding required columns...');
+
+        // process_tables: is_investigation
+        try {
+          const cols = db!.prepare(`PRAGMA table_info(process_tables)`).all() as any[];
+          const names = cols.map((c: any) => c.name);
+          if (!names.includes('is_investigation')) {
+            db!.exec(`ALTER TABLE process_tables ADD COLUMN is_investigation INTEGER NOT NULL DEFAULT 0;`);
+            console.log('[Migration] Added process_tables.is_investigation');
+          }
+        } catch (err) {
+          console.warn('[Migration] Failed to add process_tables.is_investigation', err);
+        }
+
+        // processes: new columns
+        const procCols = db!.prepare(`PRAGMA table_info(processes)`).all() as any[];
+        const procNames = procCols.map((c: any) => c.name);
+        const addColumn = (name: string, ddl: string) => {
+          if (!procNames.includes(name)) {
+            db!.exec(ddl);
+            console.log(`[Migration] Added processes.${name}`);
+          }
+        };
+
+        addColumn('display_id', `ALTER TABLE processes ADD COLUMN display_id INTEGER NOT NULL DEFAULT 0;`);
+        addColumn('work_seconds', `ALTER TABLE processes ADD COLUMN work_seconds INTEGER;`);
+        addColumn('work_unit_pref', `ALTER TABLE processes ADD COLUMN work_unit_pref TEXT;`);
+        addColumn('skill_level', `ALTER TABLE processes ADD COLUMN skill_level TEXT CHECK(skill_level IN ('-', 'L', 'M', 'H'));`);
+        addColumn('system_name', `ALTER TABLE processes ADD COLUMN system_name TEXT;`);
+        addColumn('parallel_allowed', `ALTER TABLE processes ADD COLUMN parallel_allowed INTEGER NOT NULL DEFAULT 0;`);
+        addColumn('parent_process_id', `ALTER TABLE processes ADD COLUMN parent_process_id TEXT;`);
+
+        addColumn('issue_detail', `ALTER TABLE processes ADD COLUMN issue_detail TEXT;`);
+        addColumn('issue_category', `ALTER TABLE processes ADD COLUMN issue_category TEXT;`);
+        addColumn('countermeasure_policy', `ALTER TABLE processes ADD COLUMN countermeasure_policy TEXT;`);
+        addColumn('issue_work_seconds', `ALTER TABLE processes ADD COLUMN issue_work_seconds INTEGER;`);
+        addColumn('time_reduction_seconds', `ALTER TABLE processes ADD COLUMN time_reduction_seconds INTEGER;`);
+        addColumn('rate_reduction_percent', `ALTER TABLE processes ADD COLUMN rate_reduction_percent REAL;`);
+
+        console.log('[Migration] v2_005_process_table_required_columns: Migration completed successfully');
+      }
+    },
+    {
+      version: 'v2_006_process_level_names',
+      up: () => {
+        console.log('[Migration] v2_006_process_level_names: Adding level-specific name columns...');
+
+        const procCols = db!.prepare(`PRAGMA table_info(processes)`).all() as any[];
+        const procNames = procCols.map((c: any) => c.name);
+        const addColumn = (name: string, ddl: string) => {
+          if (!procNames.includes(name)) {
+            db!.exec(ddl);
+            console.log(`[Migration] Added processes.${name}`);
+          }
+        };
+
+        addColumn('large_name', `ALTER TABLE processes ADD COLUMN large_name TEXT;`);
+        addColumn('medium_name', `ALTER TABLE processes ADD COLUMN medium_name TEXT;`);
+        addColumn('small_name', `ALTER TABLE processes ADD COLUMN small_name TEXT;`);
+        addColumn('detail_name', `ALTER TABLE processes ADD COLUMN detail_name TEXT;`);
+
+        console.log('[Migration] v2_006_process_level_names: Migration completed successfully');
       }
     }
   ];

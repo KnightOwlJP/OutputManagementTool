@@ -91,6 +91,11 @@ export function ProcessTableListV2({
                       >
                         {getLevelLabel(table.level)}
                       </Chip>
+                      {table.isInvestigation && (
+                        <Chip size="sm" color="warning" variant="flat" className="ml-2">
+                          調査モード
+                        </Chip>
+                      )}
                     </div>
                     <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                       <Button

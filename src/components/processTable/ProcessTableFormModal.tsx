@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   ModalContent,
@@ -16,6 +16,7 @@ import {
   Textarea,
   Select,
   SelectItem,
+  Switch,
 } from '@heroui/react';
 import { ProcessTable, ProcessLevel } from '@/types/models';
 
@@ -31,6 +32,7 @@ export interface ProcessTableFormData {
   name: string;
   level: ProcessLevel;
   description?: string;
+  isInvestigation?: boolean;
 }
 
 const levelOptions = [
@@ -50,6 +52,7 @@ export function ProcessTableFormModal({
   const [name, setName] = useState('');
   const [level, setLevel] = useState<ProcessLevel>('large');
   const [description, setDescription] = useState('');
+  const [isInvestigation, setIsInvestigation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ name?: string }>({});
 
@@ -61,11 +64,14 @@ export function ProcessTableFormModal({
       setName(editData.name);
       setLevel(editData.level);
       setDescription(editData.description || '');
+      setIsInvestigation(!!editData.isInvestigation);
     } else {
       setName('');
       setLevel('large');
       setDescription('');
+      setIsInvestigation(false);
     }
+    setIsSubmitting(false); // 再オープン時に入力をブロックしないようリセット
     setErrors({});
   }, [editData, isOpen]);
 
@@ -91,6 +97,7 @@ export function ProcessTableFormModal({
         name: name.trim(),
         level,
         description: description.trim() || undefined,
+        isInvestigation,
       });
       onClose();
     } catch (error) {
@@ -158,6 +165,14 @@ export function ProcessTableFormModal({
             maxRows={8}
             isDisabled={isSubmitting}
           />
+
+          <Switch
+            isSelected={isInvestigation}
+            onValueChange={setIsInvestigation}
+            isDisabled={isSubmitting}
+          >
+            調査モード工程表として管理
+          </Switch>
 
           <div className="text-sm text-gray-600">
             <p className="font-semibold mb-2">レベルの目安：</p>
