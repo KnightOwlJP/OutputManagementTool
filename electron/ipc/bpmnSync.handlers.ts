@@ -5,6 +5,7 @@
 import { ipcMain } from 'electron';
 import { getDatabase } from '../utils/database';
 import { getLogger } from '../utils/logger';
+import { loadBpmnExporter } from '../utils/loadBpmnExporter';
 import { v4 as uuidv4 } from 'uuid';
 import { DOMParser } from '@xmldom/xmldom';
 
@@ -43,6 +44,17 @@ type ParsedBpmnElement = {
   gatewayType?: string;
   eventType?: string;
 };
+
+interface ParsedLane {
+  id: string;
+  name?: string | null;
+  color?: string | null;
+}
+
+interface ParsedBpmnResult {
+  elements: ParsedBpmnElement[];
+  lanes: ParsedLane[];
+}
 
 interface SyncResult {
   success: boolean;
@@ -177,8 +189,49 @@ export function registerBpmnSyncHandlers(): void {
         `).all(processTableId) as any[];
 
         // 1. BPMN XMLをパースして要素一覧を抽出
-        const parsedElements = parseBpmnXml(bpmnXml);
+        const { elements: parsedElements, lanes: parsedLanes } = parseBpmnXml(bpmnXml);
         const parsedIds = new Set(parsedElements.map((el) => el.elementId));
+
+        // BPMN上の新規スイムレーンをDBに追加（既存とID重複しないもののみ）
+        const existingLaneIds = new Set(swimlanes.map((s) => s.id));
+        parsedLanes.forEach((lane) => {
+          if (existingLaneIds.has(lane.id)) {
+            // 色や名前の更新があれば反映
+            const current = swimlanes.find((s) => s.id === lane.id);
+            const nextName = lane.name ?? current?.name;
+            const nextColor = lane.color ?? current?.color ?? '#E3F2FD';
+            if (current && (nextName !== current.name || nextColor !== current.color)) {
+              db.prepare(`
+                UPDATE process_table_swimlanes
+                SET name = ?, color = ?, updated_at = ?
+                WHERE id = ? AND process_table_id = ?
+              `).run(nextName, nextColor, now, lane.id, processTableId);
+
+              current.name = nextName;
+              current.color = nextColor;
+              current.updated_at = new Date(now);
+            }
+            return;
+          }
+
+          const orderNum = swimlanes.length;
+          const nowDate = new Date(now);
+          db.prepare(`
+            INSERT INTO process_table_swimlanes (id, process_table_id, name, color, order_num, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(lane.id, processTableId, lane.name || 'スイムレーン', '#E3F2FD', orderNum, now, now);
+
+          swimlanes.push({
+            id: lane.id,
+            process_table_id: processTableId,
+            name: lane.name || 'スイムレーン',
+            color: lane.color || '#E3F2FD',
+            order_num: orderNum,
+            created_at: nowDate,
+            updated_at: nowDate,
+          });
+          existingLaneIds.add(lane.id);
+        });
 
         // 2. 変更リストを構築（更新/作成/削除）
         const changeQueue: BpmnChange[] = parsedElements.map((el) => ({
@@ -340,9 +393,7 @@ export function registerBpmnSyncHandlers(): void {
 
       // BPMN XML生成（完全な実装を使用）
       // 注: Electronプロセスから直接src/libを参照するため、動的requireを使用
-      const path = require('path');
-      const bpmnExporterPath = path.join(__dirname, '../../src/lib/bpmn-xml-exporter');
-      const { exportProcessTableToBpmnXml } = require(bpmnExporterPath);
+      const { exportProcessTableToBpmnXml } = loadBpmnExporter();
       
       const result = await exportProcessTableToBpmnXml({
         processTable: {
@@ -516,9 +567,11 @@ function recalculateNextProcessIds(db: any, processTableId: string): void {
 /**
  * BPMN XMLをパースして要素情報を抽出
  */
-function parseBpmnXml(xml: string): ParsedBpmnElement[] {
+function parseBpmnXml(xml: string): ParsedBpmnResult {
   const parsedElements: Map<string, ParsedBpmnElement> = new Map();
+  const parsedLanes: ParsedLane[] = [];
   const laneAssignments: Map<string, string> = new Map();
+  const laneColors: Map<string, string> = new Map();
   const beforeMap: Map<string, string[]> = new Map();
 
   try {
@@ -530,6 +583,12 @@ function parseBpmnXml(xml: string): ParsedBpmnElement[] {
     for (let i = 0; i < lanes.length; i++) {
       const lane = lanes[i];
       const laneId = normalizeLaneId(lane.getAttribute('id'));
+      if (laneId) {
+        parsedLanes.push({
+          id: laneId,
+          name: lane.getAttribute('name'),
+        });
+      }
       const nodeRefs = lane.getElementsByTagName('bpmn:flowNodeRef');
       for (let j = 0; j < nodeRefs.length; j++) {
         const refText = nodeRefs[j].textContent?.trim() || null;
@@ -537,6 +596,22 @@ function parseBpmnXml(xml: string): ParsedBpmnElement[] {
         if (processId && laneId) {
           laneAssignments.set(processId, laneId);
         }
+      }
+    }
+
+    // BPMNDIからレーン色を抽出
+    const laneShapes = doc.getElementsByTagName('bpmndi:BPMNShape');
+    for (let i = 0; i < laneShapes.length; i++) {
+      const shape = laneShapes[i];
+      const bpmnElementId = shape.getAttribute('bpmnElement') || '';
+      if (!bpmnElementId.startsWith('Lane_')) continue;
+      const laneId = normalizeLaneId(bpmnElementId);
+      if (!laneId) continue;
+      const stroke = shape.getAttribute('bioc:stroke');
+      const fill = shape.getAttribute('bioc:fill');
+      const color = stroke || fill;
+      if (color) {
+        laneColors.set(laneId, color);
       }
     }
 
@@ -626,11 +701,20 @@ function parseBpmnXml(xml: string): ParsedBpmnElement[] {
         beforeProcessIds: beforeList,
       });
     });
+
+    // レーン色を反映
+    parsedLanes.forEach((lane, index) => {
+      const color = laneColors.get(lane.id) || null;
+      parsedLanes[index] = { ...lane, color };
+    });
   } catch (error) {
     logger.error('BpmnSync', 'Failed to parse BPMN XML', error as Error);
   }
 
-  return Array.from(parsedElements.values());
+  return {
+    elements: Array.from(parsedElements.values()),
+    lanes: parsedLanes,
+  };
 }
 
 /**

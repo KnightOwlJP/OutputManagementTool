@@ -3,7 +3,7 @@
  * Processデータから標準的なBPMN 2.0 XML形式を生成
  */
 
-import { Process, Swimlane, ProcessTable } from '@/types/models';
+import { Process, Swimlane, ProcessTable, ConditionalFlow } from '@/types/models';
 import { layoutBpmnProcess, type BpmnLayoutResult } from './elk-layout';
 
 function toRgb(color: string): { r: number; g: number; b: number } | null {
@@ -158,7 +158,7 @@ export async function exportProcessTableToBpmnXml(input: BpmnExportInput): Promi
   // SequenceFlow要素
   processes.forEach((process) => {
     if (process.nextProcessIds && process.nextProcessIds.length > 0) {
-      process.nextProcessIds.forEach((targetId) => {
+      process.nextProcessIds.forEach((targetId: string) => {
         const flowId = `Flow_${process.id}_${targetId}`;
         xml += `    <bpmn:sequenceFlow id="${flowId}" sourceRef="Process_${process.id}" targetRef="Process_${targetId}" />
 `;
@@ -167,7 +167,7 @@ export async function exportProcessTableToBpmnXml(input: BpmnExportInput): Promi
 
     // 条件付きフロー
     if (process.conditionalFlows && process.conditionalFlows.length > 0) {
-      process.conditionalFlows.forEach((cFlow, index) => {
+      process.conditionalFlows.forEach((cFlow: ConditionalFlow, index: number) => {
         const flowId = `ConditionalFlow_${process.id}_${cFlow.targetProcessId}_${index}`;
         xml += `    <bpmn:sequenceFlow id="${flowId}" sourceRef="Process_${process.id}" targetRef="Process_${cFlow.targetProcessId}">
 `;
@@ -359,7 +359,7 @@ function getIncomingFlows(process: Process): string[] {
   const flows: string[] = [];
 
   if (process.beforeProcessIds && process.beforeProcessIds.length > 0) {
-    process.beforeProcessIds.forEach((sourceId) => {
+    process.beforeProcessIds.forEach((sourceId: string) => {
       flows.push(`Flow_${sourceId}_${process.id}`);
     });
   }
@@ -374,13 +374,13 @@ function getOutgoingFlows(process: Process): string[] {
   const flows: string[] = [];
 
   if (process.nextProcessIds && process.nextProcessIds.length > 0) {
-    process.nextProcessIds.forEach((targetId) => {
+    process.nextProcessIds.forEach((targetId: string) => {
       flows.push(`Flow_${process.id}_${targetId}`);
     });
   }
 
   if (process.conditionalFlows && process.conditionalFlows.length > 0) {
-    process.conditionalFlows.forEach((cFlow, index) => {
+    process.conditionalFlows.forEach((cFlow: ConditionalFlow, index: number) => {
       flows.push(`ConditionalFlow_${process.id}_${cFlow.targetProcessId}_${index}`);
     });
   }
@@ -458,7 +458,7 @@ function generateElkBasedDiagram(
   // SequenceFlow形状（エッジ）
   processes.forEach((process) => {
     if (process.nextProcessIds && process.nextProcessIds.length > 0) {
-      process.nextProcessIds.forEach((targetId) => {
+      process.nextProcessIds.forEach((targetId: string) => {
         const flowId = `Flow_${process.id}_${targetId}`;
         const edgeLayout = layout.edges.get(`flow_${process.id}_to_${targetId}`);
         
@@ -491,7 +491,7 @@ function generateElkBasedDiagram(
 
     // 条件付きフロー
     if (process.conditionalFlows && process.conditionalFlows.length > 0) {
-      process.conditionalFlows.forEach((cFlow, index) => {
+      process.conditionalFlows.forEach((cFlow: ConditionalFlow, index: number) => {
         const flowId = `ConditionalFlow_${process.id}_${cFlow.targetProcessId}_${index}`;
         const edgeLayout = layout.edges.get(`flow_${process.id}_to_${cFlow.targetProcessId}`);
         
@@ -571,7 +571,7 @@ function generateSimpleDiagram(
   // SequenceFlow形状（簡易）
   processes.forEach((process) => {
     if (process.nextProcessIds && process.nextProcessIds.length > 0) {
-      process.nextProcessIds.forEach((targetId) => {
+      process.nextProcessIds.forEach((targetId: string) => {
         const flowId = `Flow_${process.id}_${targetId}`;
         xml += `      <bpmndi:BPMNEdge id="${flowId}_di" bpmnElement="${flowId}">
         <di:waypoint x="0" y="0" />

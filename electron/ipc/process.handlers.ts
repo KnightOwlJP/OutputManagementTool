@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { getDatabase } from '../utils/database';
 import { getLogger } from '../utils/logger';
+import { loadBpmnExporter } from '../utils/loadBpmnExporter';
 import { v4 as uuidv4 } from 'uuid';
 
 const logger = getLogger();
@@ -843,9 +844,7 @@ async function syncProcessTableToBpmn(processTableId: string): Promise<void> {
   `).all(processTableId) as any[];
 
   // BPMN XML生成
-  const path = require('path');
-  const bpmnExporterPath = path.join(__dirname, '../../src/lib/bpmn-xml-exporter');
-  const { exportProcessTableToBpmnXml } = require(bpmnExporterPath);
+  const { exportProcessTableToBpmnXml } = loadBpmnExporter();
   let bpmnXml = '';
   let exportSummary: { processCount: number; laneCount: number } | null = null;
   try {

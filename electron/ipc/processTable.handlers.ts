@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../utils/database';
+import { loadBpmnExporter } from '../utils/loadBpmnExporter';
 
 // V2: 型定義はmodels.tsと同期
 interface ProcessTable {
@@ -363,6 +364,7 @@ export function registerProcessTableHandlers(): void {
       `).run(swimlaneId, processTableId, data.name, data.color || null, orderNum.next_order, now, now);
 
       console.log('[IPC] Swimlane created:', swimlaneId);
+      await syncProcessTableToBpmn(processTableId);
       return {
         id: swimlaneId,
         processTableId,
@@ -459,6 +461,7 @@ export function registerProcessTableHandlers(): void {
       };
 
       console.log('[IPC] Swimlane updated:', swimlaneId);
+      await syncProcessTableToBpmn(updated.process_table_id);
       return {
         id: updated.id,
         processTableId: updated.process_table_id,
@@ -478,8 +481,12 @@ export function registerProcessTableHandlers(): void {
   ipcMain.handle('processTable:deleteSwimlane', async (_, swimlaneId: string): Promise<void> => {
     try {
       const db = getDatabase();
+      const row = db.prepare('SELECT process_table_id FROM process_table_swimlanes WHERE id = ?').get(swimlaneId) as { process_table_id: string } | undefined;
       db.prepare('DELETE FROM process_table_swimlanes WHERE id = ?').run(swimlaneId);
       console.log('[IPC] Swimlane deleted:', swimlaneId);
+      if (row?.process_table_id) {
+        await syncProcessTableToBpmn(row.process_table_id);
+      }
     } catch (error) {
       console.error('[IPC] Error deleting swimlane:', error);
       throw error;
@@ -500,6 +507,7 @@ export function registerProcessTableHandlers(): void {
 
         db.prepare('COMMIT').run();
         console.log('[IPC] Swimlanes reordered');
+        await syncProcessTableToBpmn(processTableId);
       } catch (error) {
         db.prepare('ROLLBACK').run();
         throw error;
@@ -704,4 +712,124 @@ export function registerProcessTableHandlers(): void {
       throw error;
     }
   });
+}
+
+// BPMN同期ヘルパー（スイムレーン操作後に呼び出す）
+async function syncProcessTableToBpmn(processTableId: string): Promise<void> {
+  const db = getDatabase();
+  const now = Date.now();
+
+  const processTable = db.prepare(`
+    SELECT * FROM process_tables WHERE id = ?
+  `).get(processTableId) as any;
+
+  if (!processTable) {
+    console.warn('[IPC] syncProcessTableToBpmn skipped: process table not found', processTableId);
+    return;
+  }
+
+  const processes = db.prepare(`
+    SELECT * FROM processes WHERE process_table_id = ? ORDER BY display_order
+  `).all(processTableId) as any[];
+
+  const swimlanes = db.prepare(`
+    SELECT * FROM process_table_swimlanes WHERE process_table_id = ? ORDER BY order_num
+  `).all(processTableId) as any[];
+
+  const { exportProcessTableToBpmnXml } = loadBpmnExporter();
+
+  let bpmnXml = '';
+  try {
+    const result = await exportProcessTableToBpmnXml({
+      processTable: {
+        id: processTable.id,
+        projectId: processTable.project_id,
+        name: processTable.name,
+        level: processTable.level,
+        description: processTable.description,
+        isInvestigation: !!processTable.is_investigation,
+        displayOrder: processTable.display_order,
+        createdAt: new Date(processTable.created_at),
+        updatedAt: new Date(processTable.updated_at),
+      },
+      processes: processes.map((p: any) => ({
+        id: p.id,
+        processTableId: p.process_table_id,
+        laneId: p.lane_id,
+        name: p.name,
+        displayId: p.display_id,
+        workSeconds: p.work_seconds ?? undefined,
+        workUnitPref: p.work_unit_pref ?? undefined,
+        skillLevel: p.skill_level ?? undefined,
+        systemName: p.system_name ?? undefined,
+        parallelAllowed: !!p.parallel_allowed,
+        parentProcessId: p.parent_process_id ?? undefined,
+        issueDetail: p.issue_detail ?? undefined,
+        issueCategory: p.issue_category ?? undefined,
+        countermeasurePolicy: p.countermeasure_policy ?? undefined,
+        issueWorkSeconds: p.issue_work_seconds ?? undefined,
+        timeReductionSeconds: p.time_reduction_seconds ?? undefined,
+        rateReductionPercent: p.rate_reduction_percent ?? undefined,
+        bpmnElement: (p.bpmn_element as 'task' | 'event' | 'gateway') || 'task',
+        taskType: p.task_type || 'userTask',
+        beforeProcessIds: p.before_process_ids ? JSON.parse(p.before_process_ids) : [],
+        nextProcessIds: p.next_process_ids ? JSON.parse(p.next_process_ids) : [],
+        gatewayType: p.gateway_type || undefined,
+        conditionalFlows: p.conditional_flows ? JSON.parse(p.conditional_flows) : undefined,
+        eventType: p.event_type || undefined,
+        intermediateEventType: p.intermediate_event_type || undefined,
+        eventDetails: p.event_details || undefined,
+        documentation: p.documentation || undefined,
+        customColumns: p.custom_columns ? JSON.parse(p.custom_columns) : undefined,
+        displayOrder: p.display_order,
+        createdAt: new Date(p.created_at),
+        updatedAt: new Date(p.updated_at),
+      })),
+      swimlanes: swimlanes.map((s: any) => ({
+        id: s.id,
+        processTableId: s.process_table_id,
+        name: s.name,
+        color: s.color,
+        order: s.order_num,
+        createdAt: new Date(s.created_at),
+        updatedAt: new Date(s.updated_at),
+      })),
+      autoLayout: true,
+    });
+
+    bpmnXml = result.xml;
+  } catch (err) {
+    console.error('[IPC] Failed to export BPMN XML during swimlane sync', err);
+    return;
+  }
+
+  const currentState = db.prepare(`
+    SELECT version FROM bpmn_sync_state WHERE process_table_id = ?
+  `).get(processTableId) as { version: number } | undefined;
+
+  const newVersion = (currentState?.version || 0) + 1;
+
+  if (currentState) {
+    db.prepare(`
+      UPDATE bpmn_sync_state
+      SET bpmn_xml = ?, last_synced_at = ?, last_modified_by = ?, version = ?, updated_at = ?
+      WHERE process_table_id = ?
+    `).run(bpmnXml, now, 'process', newVersion, now, processTableId);
+  } else {
+    db.prepare(`
+      INSERT INTO bpmn_sync_state (
+        id, process_table_id, bpmn_xml, last_synced_at,
+        last_modified_by, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      uuidv4(),
+      processTableId,
+      bpmnXml,
+      now,
+      'process',
+      newVersion,
+      now,
+      now
+    );
+  }
 }

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../src",
+    "outDir": "./compiled",
+    "declaration": false,
+    "noEmit": false,
+    "lib": ["ES2020", "DOM"],
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["../src/lib/bpmn-xml-exporter.ts"]
+}

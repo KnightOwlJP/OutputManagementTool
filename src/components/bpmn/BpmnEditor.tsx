@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
+import { createPortal } from 'react-dom';
 import BpmnModeler from 'bpmn-js/lib/Modeler';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
@@ -47,6 +48,23 @@ export const BpmnEditor = memo(function BpmnEditor({
   const [isLoading, setIsLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // フルスクリーン切替時にコンテナが再配置されるため、modelerを再アタッチし再描画
+  useEffect(() => {
+    const modeler = modelerRef.current;
+    const container = containerRef.current;
+    if (!modeler || !container) return;
+
+    modeler.attachTo(container);
+    const canvas = modeler.get('canvas') as any;
+    // DOM更新後にリサイズ・フィット
+    requestAnimationFrame(() => {
+      if (!container.isConnected) return;
+      canvas.resized();
+      canvas.zoom('fit-viewport');
+    });
+  }, [isFullscreen]);
 
   /**
    * BPMNモデラーの初期化
@@ -235,8 +253,11 @@ export const BpmnEditor = memo(function BpmnEditor({
     }
   }, [diagramId, onError]);
 
-  return (
-    <div className="flex flex-col w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}>
+  const renderEditor = (fullscreen: boolean) => (
+    <div
+      className={`flex flex-col w-full ${fullscreen ? 'h-full' : ''}`}
+      style={{ height: fullscreen ? 'calc(100vh - 80px)' : 'calc(100vh - 280px)', minHeight: fullscreen ? '0px' : '600px' }}
+    >
       {/* ツールバー */}
       <div className="mb-4">
         <Card>
@@ -287,7 +308,7 @@ export const BpmnEditor = memo(function BpmnEditor({
                 </Button>
               </div>
 
-              {/* 右側: 保存・エクスポート */}
+              {/* 右側: 保存・エクスポート・表示切替 */}
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
@@ -313,6 +334,13 @@ export const BpmnEditor = memo(function BpmnEditor({
                   isDisabled={isLoading || !hasChanges}
                 >
                   {isSaving ? '保存中...' : hasChanges ? '保存' : '保存済み'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  onPress={() => setIsFullscreen(!isFullscreen)}
+                >
+                  {isFullscreen ? '通常表示に戻る' : '全画面表示'}
                 </Button>
               </div>
             </div>
@@ -356,4 +384,15 @@ export const BpmnEditor = memo(function BpmnEditor({
       `}</style>
     </div>
   );
+
+  if (isFullscreen) {
+    return createPortal(
+      <div className="fixed inset-0 z-50 bg-white overflow-hidden px-4 py-3">
+        {renderEditor(true)}
+      </div>,
+      document.body,
+    );
+  }
+
+  return renderEditor(false);
 });

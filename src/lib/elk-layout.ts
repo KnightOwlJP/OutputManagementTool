@@ -85,7 +85,7 @@ function computeRanks(processes: Process[]): RankMap {
   const rankMap: RankMap = new Map();
   const processMap = new Map(processes.map(p => [p.id, p]));
   const predsMap = new Map<string, string[]>(
-    processes.map(p => [p.id, (p.beforeProcessIds || []).filter(id => processMap.has(id))])
+    processes.map(p => [p.id, (p.beforeProcessIds || []).filter((id: string) => processMap.has(id))])
   );
 
   const unassigned = new Set(processes.map(p => p.id));
@@ -205,7 +205,7 @@ function computeManualLayout(processes: Process[], swimlanes: Swimlane[]): BpmnL
   // エッジのウェイポイント（折れ線）。同一レーン間ではレーン上部のトラックを使いノード重なりを回避。
   const laneDetourUsage = new Map<string, number>();
   processes.forEach(p => {
-    (p.nextProcessIds || []).forEach(targetId => {
+    (p.nextProcessIds || []).forEach((targetId: string) => {
       const sourceNode = nodes.get(p.id);
       const targetNode = nodes.get(targetId);
       if (!sourceNode || !targetNode) return;

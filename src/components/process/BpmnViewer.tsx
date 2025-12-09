@@ -4,12 +4,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import BpmnJS from 'bpmn-js/lib/Viewer';
 import { Process, Swimlane, ProcessTable } from '@/types/models';
 import { exportProcessTableToBpmnXml } from '@/lib/bpmn-xml-exporter';
+import { downloadBpmnAsExcel } from '@/lib/bpmn-excel-exporter';
 import { Card, CardBody, Button, Spinner } from '@heroui/react';
 import { 
   MagnifyingGlassMinusIcon, 
   MagnifyingGlassPlusIcon,
   ArrowsPointingOutIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  TableCellsIcon,
 } from '@heroicons/react/24/outline';
 
 import 'bpmn-js/dist/assets/diagram-js.css';
@@ -44,6 +46,7 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatedXml, setGeneratedXml] = useState<string>('');
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // BPMNビューアの初期化
   useEffect(() => {
@@ -185,6 +188,36 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      setIsExportingExcel(true);
+      const fallbackProcessTable =
+        processTable || {
+          id: projectId,
+          projectId,
+          name: 'Process Table',
+          level: 'large',
+          description: '',
+          isInvestigation: false,
+          displayOrder: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+      await downloadBpmnAsExcel({
+        processTable: fallbackProcessTable,
+        processes,
+        swimlanes,
+        filename: `process-diagram-${projectId}.xlsx`,
+      });
+    } catch (err) {
+      console.error('Excel export error:', err);
+      alert('Excelのエクスポートに失敗しました');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   // 空データの場合
   if (!bpmnXml && processes.length === 0) {
     return (
@@ -250,6 +283,16 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
               title="SVGエクスポート"
             >
               <ArrowDownTrayIcon className="w-4 h-4" />
+            </Button>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              isLoading={isExportingExcel}
+              onPress={handleExportExcel}
+              title="Excelエクスポート (図形)"
+            >
+              <TableCellsIcon className="w-4 h-4" />
             </Button>
           </div>
         </div>
