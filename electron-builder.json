@@ -75,7 +75,8 @@
     "shortcutName": "Output Management Tool",
     "installerIcon": "public/icon.ico",
     "uninstallerIcon": "public/icon.ico",
-    "differentialPackage": true
+    "differentialPackage": true,
+    "deleteAppDataOnUninstall": true
   },
   "compression": "maximum",
   "removePackageScripts": true,
