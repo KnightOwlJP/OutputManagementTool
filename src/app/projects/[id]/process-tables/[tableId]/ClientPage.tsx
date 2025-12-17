@@ -493,10 +493,10 @@ export function ProcessTableDetailClientPage() {
               selectedKey={activeTab}
               onSelectionChange={(key) => handleTabChange(key as string)}
               classNames={{
-                tabList: "w-full relative rounded-none p-0 border-b border-divider",
-                cursor: "w-full bg-primary",
-                tab: "max-w-fit px-6 h-12",
-                tabContent: "group-data-[selected=true]:text-primary"
+                tabList: "w-full bg-gray-50 dark:bg-gray-900/60 px-2 pt-2 rounded-t-md border-b border-divider",
+                cursor: "",
+                tab: "max-w-fit px-5 h-12 rounded-t-md text-gray-600 dark:text-gray-300 data-[selected=true]:bg-white dark:data-[selected=true]:bg-gray-800 data-[selected=true]:text-primary-600 dark:data-[selected=true]:text-primary-400",
+                tabContent: "font-medium",
               }}
             >
               <Tab key="processes" title="工程一覧">

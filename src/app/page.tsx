@@ -45,6 +45,20 @@ export default function Home() {
           </div>
         </div>
 
+        {/* PRポイント */}
+        <Card className="shadow-sm bg-linear-to-br from-emerald-50 to-cyan-50 dark:from-emerald-950 dark:to-cyan-950 border-l-4 border-emerald-500">
+          <CardBody className="p-6 space-y-3">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50">PRポイント</h2>
+            <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+              <li>工程表からBPMN 2.0工程フローを自動生成・自動レイアウト</li>
+              <li>プロセスフローの編集がリアルタイムに工程表へ同期反映（双方向更新）</li>
+              <li>全フィールド対応のCSVインポート・エクスポートで大量登録が簡単</li>
+              <li>スイムレーン・工程を一元管理し、差分なくUIで確認</li>
+              {/* <li>完全ローカル動作でオフラインでも安心、スナップショットで復元も可能</li> */}
+            </ul>
+          </CardBody>
+        </Card>
+
         {/* 主な機能 */}
         <div>
           <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-50">
@@ -54,7 +68,7 @@ export default function Home() {
             <Card className="shadow-sm">
               <CardBody className="p-5">
                 <div className="flex items-start gap-3">
-                  <div className="bg-blue-500 bg-opacity-10 p-2 rounded-lg flex-shrink-0">
+                  <div className="bg-blue-500 bg-opacity-10 p-2 rounded-lg shrink-0">
                     <TableCellsIcon className="w-6 h-6 text-blue-500" />
                   </div>
                   <div>
@@ -72,7 +86,7 @@ export default function Home() {
             <Card className="shadow-sm">
               <CardBody className="p-5">
                 <div className="flex items-start gap-3">
-                  <div className="bg-purple-500 bg-opacity-10 p-2 rounded-lg flex-shrink-0">
+                  <div className="bg-purple-500 bg-opacity-10 p-2 rounded-lg shrink-0">
                     <DocumentTextIcon className="w-6 h-6 text-purple-500" />
                   </div>
                   <div>
@@ -90,7 +104,7 @@ export default function Home() {
             <Card className="shadow-sm">
               <CardBody className="p-5">
                 <div className="flex items-start gap-3">
-                  <div className="bg-green-500 bg-opacity-10 p-2 rounded-lg flex-shrink-0">
+                  <div className="bg-green-500 bg-opacity-10 p-2 rounded-lg shrink-0">
                     <DocumentTextIcon className="w-6 h-6 text-green-500" />
                   </div>
                   <div>
@@ -108,7 +122,7 @@ export default function Home() {
             <Card className="shadow-sm">
               <CardBody className="p-5">
                 <div className="flex items-start gap-3">
-                  <div className="bg-amber-500 bg-opacity-10 p-2 rounded-lg flex-shrink-0">
+                  <div className="bg-amber-500 bg-opacity-10 p-2 rounded-lg shrink-0">
                     <SwatchIcon className="w-6 h-6 text-amber-500" />
                   </div>
                   <div>
@@ -125,39 +139,56 @@ export default function Home() {
           </div>
         </div>
 
+        {/* 近日追加予定 */}
+        <Card className="shadow-sm bg-linear-to-br from-amber-50 to-orange-50 dark:from-amber-950 dark:to-orange-950 border-l-4 border-amber-500">
+          <CardBody className="p-6 space-y-3">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50">近日追加予定</h2>
+            <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+              <li>共同編集機能（オンライン保存）</li>
+              <li>アクセス制限とアクセス権管理</li>
+              <li>BPMNフローのExcel出力（オブジェクト描画付き）</li>
+              <li>工程表の成形済みExcel/xlsm出力（CSV以外での帳票化）</li>
+              <li>マニュアルテンプレートの自動作成</li>
+              <li>生成AIによるマニュアルたたき台の自動作成</li>
+              <li>データオブジェクト等の各種BPMNオブジェクト対応を拡充</li>
+              <li>ほか改善・自動化を順次追加予定</li>
+            </ul>
+          </CardBody>
+        </Card>
+
         {/* クイックガイド */}
-        <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-l-4 border-blue-500">
+        <Card className="shadow-sm bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-l-4 border-blue-500">
           <CardBody className="p-6">
             <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-50">
               使い方
             </h2>
             <ol className="space-y-3 text-sm">
               <li className="flex gap-3">
-                <span className="font-bold text-blue-600 dark:text-blue-400 flex-shrink-0 text-lg">1.</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0 text-lg">1.</span>
                 <span className="text-gray-700 dark:text-gray-300">
                   プロジェクトを作成
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="font-bold text-blue-600 dark:text-blue-400 flex-shrink-0 text-lg">2.</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0 text-lg">2.</span>
                 <span className="text-gray-700 dark:text-gray-300">
                   工程表を作成（工程レベルを選択）
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="font-bold text-blue-600 dark:text-blue-400 flex-shrink-0 text-lg">3.</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0 text-lg">3.</span>
                 <span className="text-gray-700 dark:text-gray-300">
                   スイムレーンを設定（担当者や部門など）
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="font-bold text-blue-600 dark:text-blue-400 flex-shrink-0 text-lg">4.</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0 text-lg">4.</span>
                 <span className="text-gray-700 dark:text-gray-300">
                   工程を追加（手動入力またはExcelインポート）
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="font-bold text-blue-600 dark:text-blue-400 flex-shrink-0 text-lg">5.</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0 text-lg">5.</span>
                 <span className="text-gray-700 dark:text-gray-300">
                   BPMNフロー図でプロセスを視覚的に確認
                 </span>

@@ -3,7 +3,7 @@
  */
 
 import Papa from 'papaparse';
-import { Process, Swimlane, CustomColumn } from '@/types/models';
+import { Process, Swimlane, CustomColumn, DataObject } from '@/types/models';
 
 export type CharEncoding = 'utf-8' | 'shift-jis';
 
@@ -11,6 +11,7 @@ interface ExportOptions {
   processes: Process[];
   swimlanes: Swimlane[];
   customColumns: CustomColumn[];
+  dataObjects?: DataObject[];
   encoding?: CharEncoding;
   filename?: string;
 }
@@ -64,12 +65,66 @@ export const exportProcessesToCSV = async ({
   processes,
   swimlanes,
   customColumns,
+  dataObjects = [],
   encoding = 'utf-8',
   filename = 'processes.csv',
 }: ExportOptions): Promise<void> => {
+  const displayIdByProcessId = new Map<string, number>();
+  processes.forEach(p => {
+    if (p.displayId !== undefined && p.displayId !== null) {
+      displayIdByProcessId.set(p.id, p.displayId);
+    }
+  });
+
+  const dataObjectNameById = new Map<string, string>();
+  dataObjects.forEach(d => {
+    dataObjectNameById.set(d.id, d.name);
+  });
+
+  const formatDisplayIdList = (ids?: string[]) =>
+    (ids || [])
+      .map(id => displayIdByProcessId.get(id))
+      .filter((v): v is number => v !== undefined)
+      .join(',');
+
+  const formatHours = (seconds?: number | null) =>
+    seconds === undefined || seconds === null ? '' : (seconds / 3600).toString();
+
+  const formatDataObjects = (ids?: string[]) =>
+    (ids || [])
+      .map(id => dataObjectNameById.get(id))
+      .filter((v): v is string => Boolean(v))
+      .join(',');
+
+  const formatConditionalFlows = (flows?: Process['conditionalFlows']) => {
+    if (!flows || flows.length === 0) return '';
+    const serialized = flows.map(flow => ({
+      targetDisplayId: flow.targetProcessId ? displayIdByProcessId.get(flow.targetProcessId) : undefined,
+      condition: flow.condition,
+      description: flow.description,
+    }));
+    return JSON.stringify(serialized);
+  };
+
+  const formatMessageFlows = (flows?: Process['messageFlows']) => {
+    if (!flows || flows.length === 0) return '';
+    const serialized = flows.map(flow => ({
+      targetDisplayId: (flow as any).targetProcessId ? displayIdByProcessId.get((flow as any).targetProcessId) : (flow as any).target ? displayIdByProcessId.get((flow as any).target) : undefined,
+      messageContent: (flow as any).messageContent ?? (flow as any).message,
+      description: (flow as any).description,
+    }));
+    return JSON.stringify(serialized);
+  };
+
+  const formatArtifacts = (artifacts?: Process['artifacts']) => {
+    if (!artifacts || artifacts.length === 0) return '';
+    return JSON.stringify(artifacts);
+  };
+
   // ヘッダー行を作成
   const headers = [
     'displayId',
+    'displayOrder',
     'name',
     'largeName',
     'mediumName',
@@ -80,11 +135,27 @@ export const exportProcessesToCSV = async ({
     'taskType',
     'gatewayType',
     'eventType',
+    'intermediateEventType',
     'parallelAllowed',
     'beforeDisplayIds',
+    'nextDisplayIds',
+    'parentDisplayId',
     'workHours',
+    'workUnitPref',
     'skillLevel',
     'systemName',
+    'issueDetail',
+    'issueCategory',
+    'countermeasurePolicy',
+    'issueWorkHours',
+    'timeReductionHours',
+    'rateReductionPercent',
+    'eventDetails',
+    'inputDataObjects',
+    'outputDataObjects',
+    'conditionalFlows',
+    'messageFlows',
+    'artifacts',
     'documentation',
     ...customColumns.map(col => col.name),
   ];
@@ -93,6 +164,7 @@ export const exportProcessesToCSV = async ({
   const rows = processes.map(process => {
     const baseData = [
       process.displayId ?? '',
+      process.displayOrder ?? '',
       process.name || '',
       process.largeName || '',
       process.mediumName || '',
@@ -103,14 +175,30 @@ export const exportProcessesToCSV = async ({
       process.taskType || '',
       process.gatewayType || '',
       process.eventType || '',
+      process.intermediateEventType || '',
       process.parallelAllowed ? 'true' : 'false',
       (process.beforeProcessIds || []).map(id => {
         const target = processes.find(p => p.id === id);
         return target?.displayId ?? '';
       }).filter(v => v !== '').join(','),
-      process.workSeconds !== undefined ? (process.workSeconds / 3600).toString() : '',
+      formatDisplayIdList(process.nextProcessIds),
+      process.parentProcessId ? displayIdByProcessId.get(process.parentProcessId) ?? '' : '',
+      formatHours(process.workSeconds),
+      process.workUnitPref || '',
       process.skillLevel || '',
       process.systemName || '',
+      process.issueDetail || '',
+      process.issueCategory || '',
+      process.countermeasurePolicy || '',
+      formatHours(process.issueWorkSeconds),
+      formatHours(process.timeReductionSeconds),
+      process.rateReductionPercent ?? '',
+      process.eventDetails || '',
+      formatDataObjects(process.inputDataObjects),
+      formatDataObjects(process.outputDataObjects),
+      formatConditionalFlows(process.conditionalFlows),
+      formatMessageFlows(process.messageFlows),
+      formatArtifacts(process.artifacts),
       process.documentation || '',
     ];
 

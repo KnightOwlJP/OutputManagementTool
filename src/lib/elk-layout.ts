@@ -57,6 +57,7 @@ const EDGE_HORIZONTAL_OFFSET = 24; // エッジを曲げる際の水平オフセ
 const EDGE_LANE_CLEARANCE = 10; // レーン上部に逃がすクリアランス
 const EDGE_VERTICAL_CLEARANCE = 30; // ノードを避けるために上方向へ持ち上げる量
 const EDGE_TRACK_SPACING = 12; // レーン上部を使う際のトラック間隔
+const STRAIGHT_LINE_Y_TOLERANCE = 2; // 同一レベルでの直線判定許容差（px）
 
 // ==========================================
 // ELKレイアウトエンジン
@@ -219,6 +220,20 @@ function computeManualLayout(processes: Process[], swimlanes: Swimlane[]): BpmnL
       const sourceLane = p.laneId ? lanes.get(p.laneId) : undefined;
 
       if (sameLane && sourceLane) {
+        // 同一レーンかつ高さが実質同じなら直線で結ぶ
+        if (Math.abs(startY - endY) <= STRAIGHT_LINE_Y_TOLERANCE) {
+          const waypoints = [
+            { x: startX, y: startY },
+            { x: endX, y: endY },
+          ];
+
+          edges.set(`flow_${p.id}_to_${targetId}`, {
+            id: `flow_${p.id}_to_${targetId}`,
+            waypoints,
+          });
+          return;
+        }
+
         const preX = startX + EDGE_HORIZONTAL_OFFSET;
         const postX = endX - EDGE_HORIZONTAL_OFFSET;
         const laneTop = sourceLane.y + EDGE_LANE_CLEARANCE;

@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
   Table,
@@ -23,6 +23,11 @@ import {
   Tooltip,
   Select,
   SelectItem,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
 } from '@heroui/react';
 import {
   PlusIcon,
@@ -89,6 +94,7 @@ export function ProcessManagement({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [editingProcess, setEditingProcess] = useState<Process | null>(null);
+  const [detailProcess, setDetailProcess] = useState<Process | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -142,6 +148,38 @@ export function ProcessManagement({
   const getSwimlaneName = (laneId: string) => {
     const swimlane = swimlanes.find((s) => s.id === laneId);
     return swimlane ? swimlane.name : '-';
+  };
+
+  const displayIdMap = useMemo(() => new Map(processes.map(p => [p.id, p.displayId])), [processes]);
+
+  const getDisplayId = (id?: string) => (id ? displayIdMap.get(id) ?? '-' : '-');
+
+  const formatWorkHours = (seconds?: number | null) =>
+    seconds === undefined || seconds === null ? '-' : (seconds / 3600).toString();
+
+  const getDataObjectName = (id: string) => dataObjects.find((d) => d.id === id)?.name || id;
+
+  const formatCustomColumnsInline = (p: Process) => {
+    if (!p.customColumns || Object.keys(p.customColumns).length === 0) return '-';
+    return customColumns
+      .map((c) => {
+        const v = p.customColumns?.[c.id];
+        if (v === undefined || v === null || v === '') return null;
+        return `${c.name}: ${String(v)}`;
+      })
+      .filter(Boolean)
+      .join(' / ');
+  };
+
+  const formatProcessRefs = (ids?: string[]) => {
+    if (!ids || ids.length === 0) return '-';
+    return ids
+      .map((id) => {
+        const target = processes.find((p) => p.id === id);
+        const disp = target?.displayId ?? '-';
+        return `${disp}: ${target?.name ?? '-'}`;
+      })
+      .join(', ');
   };
 
   // 前工程の名前を取得
@@ -374,6 +412,7 @@ export function ProcessManagement({
         processes: filteredProcesses,
         swimlanes,
         customColumns,
+        dataObjects,
         encoding: csvEncoding,
         filename,
       });
@@ -395,7 +434,7 @@ export function ProcessManagement({
     setIsImporting(true);
     try {
       const text = await file.text();
-      const parsed = parseProcessesCsv(text, customColumns);
+      const parsed = parseProcessesCsv(text, customColumns, dataObjects);
 
       if (parsed.errors.length > 0) {
         showToast('error', parsed.errors.join('\n'));
@@ -436,7 +475,7 @@ export function ProcessManagement({
           processTableId: processTableId,
           name: laneName,
           color,
-          order: data.orderNum ?? nextLaneOrder,
+          order: (data as any).orderNum ?? (data as any).order ?? nextLaneOrder,
           createdAt: data.createdAt ?? new Date(),
           updatedAt: data.updatedAt ?? new Date(),
         } as Swimlane;
@@ -463,12 +502,27 @@ export function ProcessManagement({
           idByDisplayId.set(p.displayId, p.id);
         }
       });
-      const importedRows: Array<{ displayId: number; beforeDisplayIds: number[] }> = [];
+      const postProcessUpdates: Array<{
+        displayId: number;
+        beforeDisplayIds: number[];
+        nextDisplayIds?: number[];
+        parentDisplayId?: number;
+        conditionalFlows?: Array<{ targetDisplayId?: number; condition?: string; description?: string }>;
+        messageFlows?: Array<{ targetDisplayId?: number; messageContent?: string; description?: string }>;
+      }> = [];
 
-      // 1st pass: create/update without beforeProcessIds
+      // 1st pass: create/update without displayId dependent relations
       for (const row of parsed.rows) {
         const lane = await ensureLane(row.laneName);
         const displayId = row.displayId!;
+        const artifacts = row.artifacts
+          ?.map((a) => {
+            const type = a.type ?? '';
+            const content = a.content ?? '';
+            if (!type && !content) return undefined;
+            return { type, content };
+          })
+          .filter((v): v is { type: string; content: string } => Boolean(v)) || undefined;
         const basePayload = {
           name: row.name,
           largeName: row.largeName || row.name,
@@ -477,16 +531,29 @@ export function ProcessManagement({
           detailName: row.detailName,
           laneId: lane.id,
           displayId,
+          displayOrder: row.displayOrder ?? displayId,
           bpmnElement: (row.bpmnElement as Process['bpmnElement']) || 'task',
           taskType: row.taskType as Process['taskType'],
           gatewayType: row.gatewayType as Process['gatewayType'],
           eventType: row.eventType as Process['eventType'],
+          intermediateEventType: row.intermediateEventType as Process['intermediateEventType'],
+          eventDetails: row.eventDetails,
           parallelAllowed: row.parallelAllowed ?? false,
           workSeconds: row.workSeconds,
+          workUnitPref: row.workUnitPref,
           skillLevel: row.skillLevel,
           systemName: row.systemName,
           documentation: row.documentation,
-          customColumns: Object.keys(row.customColumns).length > 0 ? row.customColumns : undefined,
+          issueDetail: row.issueDetail,
+          issueCategory: row.issueCategory,
+          countermeasurePolicy: row.countermeasurePolicy,
+          issueWorkSeconds: row.issueWorkSeconds,
+          timeReductionSeconds: row.timeReductionSeconds,
+          rateReductionPercent: row.rateReductionPercent,
+          inputDataObjects: row.inputDataObjects,
+          outputDataObjects: row.outputDataObjects,
+          artifacts,
+          customColumns: row.customColumns && Object.keys(row.customColumns).length > 0 ? row.customColumns : undefined,
         };
 
         const existing = currentProcesses.find((p) => p.displayId === displayId);
@@ -504,7 +571,14 @@ export function ProcessManagement({
           idByDisplayId.set(displayId, data.id);
         }
 
-        importedRows.push({ displayId, beforeDisplayIds: row.beforeDisplayIds });
+        postProcessUpdates.push({
+          displayId,
+          beforeDisplayIds: row.beforeDisplayIds,
+          nextDisplayIds: row.nextDisplayIds,
+          parentDisplayId: row.parentDisplayId,
+          conditionalFlows: row.conditionalFlows,
+          messageFlows: row.messageFlows,
+        });
       }
 
       // 2nd pass: 最新データを再取得してから前工程を反映
@@ -520,22 +594,77 @@ export function ProcessManagement({
       });
 
       const unresolvedBefore: Array<{ displayId: number; missing: number[] }> = [];
+      const unresolvedParent: Array<{ displayId: number; missing: number }> = [];
+      const unresolvedConditional: Array<{ displayId: number; missing: number[] }> = [];
+      const unresolvedMessage: Array<{ displayId: number; missing: number[] }> = [];
+      const unresolvedNext: Array<{ displayId: number; missing: number[] }> = [];
 
-      for (const item of importedRows) {
+      for (const item of postProcessUpdates) {
         const targetId = displayIdMap.get(item.displayId);
         if (!targetId) continue;
-        const missingRefs: number[] = [];
-        const beforeIds = item.beforeDisplayIds
+
+        const missingBefore: number[] = [];
+        const beforeIds = (item.beforeDisplayIds || [])
           .map((d) => {
             const resolved = displayIdMap.get(d);
-            if (!resolved) missingRefs.push(d);
+            if (!resolved) missingBefore.push(d);
             return resolved;
           })
           .filter((v): v is string => Boolean(v));
-        const { error } = await processIPC.update(targetId, { beforeProcessIds: beforeIds });
+
+        const parentProcessId = item.parentDisplayId !== undefined
+          ? displayIdMap.get(item.parentDisplayId)
+          : undefined;
+        if (item.parentDisplayId !== undefined && !parentProcessId) {
+          unresolvedParent.push({ displayId: item.displayId, missing: item.parentDisplayId });
+        }
+
+        const conditionalFlows: Array<{ targetProcessId: string; condition: string; description?: string }> = [];
+        (item.conditionalFlows || []).forEach((cf) => {
+          if (!cf.targetDisplayId) return;
+          const resolved = displayIdMap.get(cf.targetDisplayId);
+          if (!resolved) return;
+          conditionalFlows.push({ targetProcessId: resolved, condition: cf.condition ?? '', description: cf.description });
+        });
+
+        const missingConditional = (item.conditionalFlows || [])
+          .map(cf => cf.targetDisplayId)
+          .filter((id): id is number => id !== undefined && !displayIdMap.get(id));
+        if (missingConditional.length > 0) {
+          unresolvedConditional.push({ displayId: item.displayId, missing: missingConditional });
+        }
+
+        const messageFlows: Array<{ targetProcessId: string; messageContent: string; description?: string }> = [];
+        (item.messageFlows || []).forEach((mf) => {
+          if (!mf.targetDisplayId) return;
+          const resolved = displayIdMap.get(mf.targetDisplayId);
+          if (!resolved) return;
+          messageFlows.push({ targetProcessId: resolved, messageContent: mf.messageContent ?? '', description: mf.description });
+        });
+
+        const missingMessage = (item.messageFlows || [])
+          .map(mf => mf.targetDisplayId)
+          .filter((id): id is number => id !== undefined && !displayIdMap.get(id));
+        if (missingMessage.length > 0) {
+          unresolvedMessage.push({ displayId: item.displayId, missing: missingMessage });
+        }
+
+        const nextProcessIds = item.nextDisplayIds?.map((d) => displayIdMap.get(d)).filter((v): v is string => Boolean(v));
+        const missingNext = (item.nextDisplayIds || [])
+          .filter((d) => !displayIdMap.get(d));
+        if (missingNext.length > 0) {
+          unresolvedNext.push({ displayId: item.displayId, missing: missingNext });
+        }
+
+        const { error } = await processIPC.update(targetId, {
+          beforeProcessIds: beforeIds,
+          parentProcessId: item.parentDisplayId !== undefined ? parentProcessId : undefined,
+          conditionalFlows: item.conditionalFlows ? conditionalFlows : undefined,
+          messageFlows: item.messageFlows ? messageFlows : undefined,
+        });
         if (error) throw new Error(`displayId ${item.displayId}: 前工程の設定に失敗しました - ${error}`);
-        if (missingRefs.length > 0) {
-          unresolvedBefore.push({ displayId: item.displayId, missing: missingRefs });
+        if (missingBefore.length > 0) {
+          unresolvedBefore.push({ displayId: item.displayId, missing: missingBefore });
         }
       }
 
@@ -546,6 +675,38 @@ export function ProcessManagement({
           .join('\n');
         const suffix = unresolvedBefore.length > 5 ? `\n...ほか${unresolvedBefore.length - 5}件` : '';
         showToast('warning', `前工程に該当するdisplayIdが見つかりませんでした:\n${message}${suffix}`);
+      }
+      if (unresolvedParent.length > 0) {
+        const message = unresolvedParent
+          .slice(0, 5)
+          .map((u) => `displayId ${u.displayId}: parent ${u.missing}`)
+          .join('\n');
+        const suffix = unresolvedParent.length > 5 ? `\n...ほか${unresolvedParent.length - 5}件` : '';
+        showToast('warning', `親工程に該当するdisplayIdが見つかりませんでした:\n${message}${suffix}`);
+      }
+      if (unresolvedConditional.length > 0) {
+        const message = unresolvedConditional
+          .slice(0, 5)
+          .map((u) => `displayId ${u.displayId}: ${u.missing.join(', ')}`)
+          .join('\n');
+        const suffix = unresolvedConditional.length > 5 ? `\n...ほか${unresolvedConditional.length - 5}件` : '';
+        showToast('warning', `conditionalFlows の target displayId が見つかりませんでした:\n${message}${suffix}`);
+      }
+      if (unresolvedMessage.length > 0) {
+        const message = unresolvedMessage
+          .slice(0, 5)
+          .map((u) => `displayId ${u.displayId}: ${u.missing.join(', ')}`)
+          .join('\n');
+        const suffix = unresolvedMessage.length > 5 ? `\n...ほか${unresolvedMessage.length - 5}件` : '';
+        showToast('warning', `messageFlows の target displayId が見つかりませんでした:\n${message}${suffix}`);
+      }
+      if (unresolvedNext.length > 0) {
+        const message = unresolvedNext
+          .slice(0, 5)
+          .map((u) => `displayId ${u.displayId}: ${u.missing.join(', ')}`)
+          .join('\n');
+        const suffix = unresolvedNext.length > 5 ? `\n...ほか${unresolvedNext.length - 5}件` : '';
+        showToast('warning', `nextDisplayIds に該当するdisplayIdが見つかりませんでした:\n${message}${suffix}`);
       }
 
       showToast('success', 'CSVインポートが完了しました');
@@ -565,6 +726,13 @@ export function ProcessManagement({
     setFilterSwimlane('all');
     setFilterTaskType('all');
   };
+
+  const renderDetailField = (label: string, value: ReactNode) => (
+    <div className="space-y-1">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-sm text-gray-900 dark:text-gray-100 wrap-break-word">{value || '-'}</div>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -710,15 +878,21 @@ export function ProcessManagement({
         }}
       >
         <TableHeader>
+          <TableColumn>表示ID</TableColumn>
           <TableColumn>工程名</TableColumn>
           <TableColumn>スイムレーン</TableColumn>
           <TableColumn>BPMN要素</TableColumn>
-          <TableColumn>タスクタイプ</TableColumn>
+          <TableColumn>タイプ</TableColumn>
+          <TableColumn>工数(h)</TableColumn>
+          <TableColumn>スキル</TableColumn>
+          <TableColumn>システム</TableColumn>
           <TableColumn>前工程</TableColumn>
           <TableColumn>次工程</TableColumn>
-          {/* TODO: カスタム列の動的表示（HeroUI制限により将来実装） */}
+          <TableColumn>課題分類</TableColumn>
+          <TableColumn>カスタム列</TableColumn>
           <TableColumn>説明</TableColumn>
           <TableColumn align="center">操作</TableColumn>
+          <TableColumn align="center">詳細</TableColumn>
         </TableHeader>
         <TableBody
           items={filteredProcesses}
@@ -733,10 +907,12 @@ export function ProcessManagement({
         >
           {(process) => (
             <TableRow key={process.id}>
+              <TableCell>{process.displayId ?? '-'}</TableCell>
               <TableCell>
                 <div className="font-medium text-gray-900 dark:text-gray-50">
                   {process.name}
                 </div>
+                <div className="text-xs text-gray-500">{process.detailName || process.smallName || process.mediumName || process.largeName || '-'}</div>
               </TableCell>
               <TableCell>
                 <Chip size="sm" variant="flat" color="primary">
@@ -757,20 +933,44 @@ export function ProcessManagement({
                     <span>{process.taskType ? TASK_TYPE_CONFIG[process.taskType]?.icon || '📌' : '📌'}</span>
                   }
                 >
-                  {process.taskType ? TASK_TYPE_CONFIG[process.taskType]?.label || process.taskType : '-'}
+                  {process.taskType ? TASK_TYPE_CONFIG[process.taskType]?.label || process.taskType : (process.gatewayType || process.eventType || '-')}
                 </Chip>
               </TableCell>
               <TableCell>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {getBeforeProcessNames(process.beforeProcessIds)}
+                  {formatWorkHours(process.workSeconds)}
                 </div>
               </TableCell>
               <TableCell>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
+                  {process.skillLevel || '-'}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-[140px]">
+                  {process.systemName || '-'}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-[180px]">
+                  {getBeforeProcessNames(process.beforeProcessIds)}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-[180px]">
                   {getNextProcessNames(process.nextProcessIds)}
                 </div>
               </TableCell>
-              {/* TODO: カスタム列値の表示（HeroUI制限により将来実装） */}
+              <TableCell>
+                <div className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-[140px]">
+                  {process.issueCategory || '-'}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-[200px]">
+                  {formatCustomColumnsInline(process)}
+                </div>
+              </TableCell>
               <TableCell>
                 <div className="text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
                   {process.documentation || '-'}
@@ -808,7 +1008,7 @@ export function ProcessManagement({
                       <PencilIcon className="w-4 h-4" />
                     </Button>
                   </Tooltip>
-                  <Tooltip content="削除" color="danger">
+                  <Tooltip content="削除">
                     <Button
                       isIconOnly
                       size="sm"
@@ -821,10 +1021,125 @@ export function ProcessManagement({
                   </Tooltip>
                 </div>
               </TableCell>
+              <TableCell>
+                <Button size="sm" variant="flat" onPress={() => setDetailProcess(process)}>
+                  すべて表示
+                </Button>
+              </TableCell>
             </TableRow>
           )}
         </TableBody>
       </Table>
+
+      {/* 詳細モーダル */}
+      <Modal isOpen={!!detailProcess} onClose={() => setDetailProcess(null)} size="4xl" scrollBehavior="inside">
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader>
+                <div className="space-y-1">
+                  <div className="text-sm text-gray-500">表示ID: {detailProcess?.displayId ?? '-'}</div>
+                  <div className="text-lg font-semibold">{detailProcess?.name}</div>
+                  <div className="text-sm text-gray-500">{detailProcess ? getSwimlaneName(detailProcess.laneId) : '-'}</div>
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                {detailProcess && (
+                  <div className="space-y-6">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {renderDetailField('displayOrder', detailProcess.displayOrder ?? '-')}
+                      {renderDetailField('並列可', detailProcess.parallelAllowed ? 'はい' : 'いいえ')}
+                      {renderDetailField('大工程名', detailProcess.largeName || '-')}
+                      {renderDetailField('中工程名', detailProcess.mediumName || '-')}
+                      {renderDetailField('小工程名', detailProcess.smallName || '-')}
+                      {renderDetailField('詳細工程名', detailProcess.detailName || '-')}
+                      {renderDetailField('BPMN要素', detailProcess.bpmnElement || '-')}
+                      {renderDetailField('タスクタイプ', detailProcess.taskType || '-')}
+                      {renderDetailField('ゲートウェイ', detailProcess.gatewayType || '-')}
+                      {renderDetailField('イベント', detailProcess.eventType || '-')}
+                      {renderDetailField('中間イベントタイプ', detailProcess.intermediateEventType || '-')}
+                      {renderDetailField('イベント詳細', detailProcess.eventDetails || '-')}
+                      {renderDetailField('工数(h)', formatWorkHours(detailProcess.workSeconds))}
+                      {renderDetailField('課題工数(h)', formatWorkHours(detailProcess.issueWorkSeconds))}
+                      {renderDetailField('時間削減(h)', formatWorkHours(detailProcess.timeReductionSeconds))}
+                      {renderDetailField('削減率(%)', detailProcess.rateReductionPercent ?? '-')}
+                      {renderDetailField('スキル', detailProcess.skillLevel || '-')}
+                      {renderDetailField('システム', detailProcess.systemName || '-')}
+                      {renderDetailField('作業単位', detailProcess.workUnitPref || '-')}
+                      {renderDetailField('親工程', detailProcess.parentProcessId ? `${getDisplayId(detailProcess.parentProcessId)}: ${processes.find(p => p.id === detailProcess.parentProcessId)?.name ?? ''}` : '-')}
+                      {renderDetailField('前工程', formatProcessRefs(detailProcess.beforeProcessIds))}
+                      {renderDetailField('次工程', formatProcessRefs(detailProcess.nextProcessIds))}
+                      {renderDetailField('課題事象', detailProcess.issueDetail || '-')}
+                      {renderDetailField('課題分類', detailProcess.issueCategory || '-')}
+                      {renderDetailField('対策方針', detailProcess.countermeasurePolicy || '-')}
+                      {renderDetailField('説明', detailProcess.documentation || '-')}
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {renderDetailField('入力データオブジェクト', detailProcess.inputDataObjects?.length ? detailProcess.inputDataObjects.map(getDataObjectName).join(', ') : '-')}
+                      {renderDetailField('出力データオブジェクト', detailProcess.outputDataObjects?.length ? detailProcess.outputDataObjects.map(getDataObjectName).join(', ') : '-')}
+                    </div>
+
+                    <div className="space-y-3">
+                      {renderDetailField('条件分岐', detailProcess.conditionalFlows?.length ? (
+                        <div className="space-y-1">
+                          {detailProcess.conditionalFlows.map((cf, idx) => (
+                            <div key={idx} className="text-sm text-gray-900 dark:text-gray-100">
+                              {cf.condition || '-'} → {cf.targetProcessId ? `${getDisplayId(cf.targetProcessId)}: ${processes.find(p => p.id === cf.targetProcessId)?.name ?? ''}` : '-'} {cf.description ? `(${cf.description})` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      ) : '-')}
+                    </div>
+
+                    <div className="space-y-3">
+                      {renderDetailField('メッセージフロー', detailProcess.messageFlows?.length ? (
+                        <div className="space-y-1">
+                          {detailProcess.messageFlows.map((mf, idx) => (
+                            <div key={idx} className="text-sm text-gray-900 dark:text-gray-100">
+                              → {mf.targetProcessId ? `${getDisplayId(mf.targetProcessId)}: ${processes.find(p => p.id === mf.targetProcessId)?.name ?? ''}` : '-'} {mf.messageContent ? `: ${mf.messageContent}` : ''} {mf.description ? `(${mf.description})` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      ) : '-')}
+                    </div>
+
+                    <div className="space-y-3">
+                      {renderDetailField('アーティファクト', detailProcess.artifacts?.length ? (
+                        <div className="space-y-1">
+                          {detailProcess.artifacts.map((a, idx) => (
+                            <div key={idx} className="text-sm text-gray-900 dark:text-gray-100">
+                              [{a.type}] {a.content}
+                            </div>
+                          ))}
+                        </div>
+                      ) : '-')}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-500">カスタム列</div>
+                      {customColumns.length === 0 ? (
+                        <div className="text-sm text-gray-600 dark:text-gray-400">-</div>
+                      ) : (
+                        <div className="grid md:grid-cols-2 gap-3">
+                          {customColumns.map((col) => (
+                            <div key={col.id} className="text-sm text-gray-900 dark:text-gray-100">
+                              <span className="font-medium">{col.name}:</span> {detailProcess.customColumns?.[col.id] ?? '-'}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>閉じる</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
       {/* 工程作成・編集モーダル */}
       <ProcessFormModal

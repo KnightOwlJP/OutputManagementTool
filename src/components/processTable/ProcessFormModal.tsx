@@ -346,7 +346,9 @@ export function ProcessFormModal({
                 selectedKey={activeTab}
                 onSelectionChange={(key) => setActiveTab(key as string)}
                 classNames={{
-                  tabList: 'w-full',
+                  tabList: 'w-full bg-gray-100 dark:bg-gray-800 rounded-lg p-1',
+                  tab: 'px-4 py-2 rounded-md text-sm text-gray-600 dark:text-gray-300 data-[selected=true]:bg-white dark:data-[selected=true]:bg-gray-700 data-[selected=true]:text-primary-600 dark:data-[selected=true]:text-primary-400 shadow-none',
+                  tabContent: 'font-medium',
                 }}
               >
                 <Tab key="basic" title="基本情報">

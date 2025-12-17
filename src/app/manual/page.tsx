@@ -29,8 +29,8 @@ export default function ManualPage() {
             Output Management Tool の全機能を詳しく解説します
           </p>
           <div className="flex items-center justify-center gap-2">
-            <Chip color="primary" variant="flat">Version 0.6.0</Chip>
-            <Chip color="success" variant="flat">フラット構造対応</Chip>
+            <Chip color="primary" variant="flat">Version 2.0.0</Chip>
+            <Chip color="success" variant="flat">フラット構造・CSV強化</Chip>
             <Chip color="secondary" variant="flat">BPMN 2.0準拠</Chip>
           </div>
         </div>
@@ -46,9 +46,9 @@ export default function ManualPage() {
                     <BookOpenIcon className="w-6 h-6 text-blue-500" />
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-50">基本ガイド</h3>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    このページ - ツールの使い方、機能説明、実践ガイド
-                  </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      このページ - ツールの使い方、CSV/工程/BPMN/同期の実践ガイド
+                    </p>
                 </CardBody>
               </Card>
               
@@ -106,9 +106,9 @@ export default function ManualPage() {
                   データ管理
                 </h3>
                 <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                  <li>� <strong>データオブジェクト</strong> - 入出力データを明確化</li>
-                  <li>� <strong>前工程・次工程</strong> - フロー制御を明確に</li>
-                  <li>📋 <strong>Excel連携</strong> - インポート/エクスポート対応</li>
+                  <li>📦 <strong>データオブジェクト</strong> - 入出力データを明確化</li>
+                  <li>➡️ <strong>前工程・次工程</strong> - フロー制御を明確に</li>
+                  <li>📋 <strong>CSV/Excel連携</strong> - すべての工程フィールドを入出力</li>
                   <li>💾 <strong>バージョン管理</strong> - スナップショット作成・復元</li>
                 </ul>
               </div>
@@ -123,12 +123,12 @@ export default function ManualPage() {
               <div className="bg-green-500 bg-opacity-10 p-3 rounded-lg">
                 <RocketLaunchIcon className="w-8 h-8 text-green-500" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-50">クイックスタート</h2>
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-50">クイックスタート（10分）</h2>
             </div>
             
-            <p className="text-gray-600 dark:text-gray-400">
-              5分で始められる基本的なワークフローです
-            </p>
+              <p className="text-gray-600 dark:text-gray-400">
+                迷ったらこの順に進めれば最低限の工程表が完成します。
+              </p>
             
             <ol className="space-y-5">
               <li className="flex gap-4">
@@ -147,8 +147,7 @@ export default function ManualPage() {
                 <div className="flex-1">
                   <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">工程表を作成</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    プロジェクト詳細画面から「工程表を作成」ボタンをクリック。
-                    レベル（L1/L2/L3）を選択して工程表を作成します。
+                    プロジェクト詳細画面から「工程表を作成」。レベル（L1/L2/L3）を選択して作成します。
                   </p>
                   <Code className="text-xs">工程表名、レベル、説明を入力 → 作成</Code>
                 </div>
@@ -159,8 +158,7 @@ export default function ManualPage() {
                 <div className="flex-1">
                   <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">スイムレーンを設定</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    工程表詳細画面の「スイムレーン」タブで担当部門や役割ごとにレーンを作成。
-                    各工程は1つのレーンに所属します。
+                    工程表詳細の「スイムレーン」タブで担当部門/役割を登録。各工程は1つのレーンに所属します。
                   </p>
                   <div className="flex gap-2 flex-wrap">
                     <Chip size="sm" color="primary" variant="flat">営業部</Chip>
@@ -173,12 +171,11 @@ export default function ManualPage() {
               <li className="flex gap-4">
                 <span className="shrink-0 w-10 h-10 bg-linear-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">4</span>
                 <div className="flex-1">
-                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">工程を追加</h4>
+                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">工程を追加（手動/CSV）</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    「工程一覧」タブで「工程追加」ボタンをクリック。
-                    工程名、スイムレーン、タスクタイプ、前工程を設定します。
+                    「工程一覧」タブ → 「工程追加」で1件登録して項目を把握。大量登録は「CSVインポート」で `displayId,name,lane,beforeDisplayIds,...` を埋めてインポート。
                   </p>
-                  <Code className="text-xs">工程一覧 → 工程追加 → 情報入力 → 保存</Code>
+                  <Code className="text-xs">工程一覧 → 工程追加 → 入力 → 保存 / CSVインポート</Code>
                 </div>
               </li>
               
@@ -187,8 +184,7 @@ export default function ManualPage() {
                 <div className="flex-1">
                   <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">BPMNフローを確認</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    「BPMNフロー図」タブで作成した工程がビジュアルに表示されます。
-                    自動レイアウト機能でプロセスフローを整理できます。
+                    「BPMNフロー図」タブで自動レイアウト。水平並びは直線、段差がある場合は折れ曲がりで回避します。
                   </p>
                   <Code className="text-xs">BPMNフロー図 → 自動レイアウト</Code>
                 </div>
@@ -392,6 +388,7 @@ export default function ManualPage() {
                       <li>• <strong>自動レイアウト</strong> - ELKjsによる階層的な自動配置</li>
                       <li>• <strong>スイムレーン表示</strong> - レーンごとに色分け表示</li>
                       <li>• <strong>タスクタイプアイコン</strong> - BPMN 2.0準拠のアイコン表示</li>
+                      <li>• <strong>同一レーン直線描画</strong> - 同じY座標の工程は直線、それ以外は段差を回避する折線</li>
                       <li>• <strong>ズーム/パン</strong> - マウスホイールで拡大縮小、ドラッグで移動</li>
                     </ul>
                   </div>
@@ -455,14 +452,14 @@ export default function ManualPage() {
                     <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📥 インポート</h4>
                     <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
                       <li>階層管理画面で「Excelインポート」ボタンをクリック</li>
-                      <li>Excelファイル（.xlsx, .xls）を選択</li>
-                      <li>必要な列をマッピング</li>
+                      <li>Excel/CSVファイル（.xlsx, .xls, .csv）を選択</li>
+                      <li>必要な列をマッピング（ヘッダー名を自動サジェスト）</li>
                       <li>プレビューで確認</li>
                       <li>「インポート実行」をクリック</li>
                     </ol>
                     <div className="mt-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded">
                       <p className="text-xs text-blue-700 dark:text-blue-300">
-                        💡 ヒント: 1行目がヘッダー行として自動認識されます
+                        💡 ヒント: 1行目がヘッダー行として自動認識され、空欄や重複ヘッダーは警告表示されます
                       </p>
                     </div>
                   </div>
@@ -474,18 +471,21 @@ export default function ManualPage() {
                     <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">
                       <li>階層管理画面で「Excelエクスポート」ボタンをクリック</li>
                       <li>出力形式を選択（フラット/階層）</li>
-                      <li>保存場所を指定</li>
-                      <li>ダウンロード完了</li>
+                      <li>CSV/Excelを選択し保存先を指定</li>
+                      <li>ダウンロード完了（BPMN XMLはBPMNタブから出力）</li>
                     </ol>
                   </div>
                   
                   <Divider />
                   
                   <div>
-                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📋 推奨フォーマット</h4>
-                    <Code className="text-xs block p-2">
-                      工程名 | レベル | 親工程名 | 説明 | 担当者 | 工数
+                    <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-50">📋 推奨CSVヘッダー（全フィールド対応）</h4>
+                    <Code className="text-xs block p-2 whitespace-pre-wrap">
+displayId,name,lane,beforeDisplayIds,afterDisplayIds,taskType,level,description,dataObjectNames,customColumns,displayOrder
                     </Code>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                      dataObjectNames はカンマ区切り、customColumns は JSON 文字列で指定できます。
+                    </p>
                   </div>
                 </div>
               </AccordionItem>
@@ -798,8 +798,8 @@ export default function ManualPage() {
               このマニュアルで解決できない問題がある場合は、以下のリソースをご確認ください
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Chip color="primary" variant="flat" size="lg">バージョン: 0.6.0</Chip>
-              <Chip color="success" variant="flat" size="lg">最終更新: 2025年10月24日</Chip>
+              <Chip color="primary" variant="flat" size="lg">バージョン: 2.0.0</Chip>
+              <Chip color="success" variant="flat" size="lg">最終更新: 2025年12月18日</Chip>
               <Chip color="secondary" variant="flat" size="lg">BPMN 2.0準拠</Chip>
             </div>
             <Divider className="my-6" />
