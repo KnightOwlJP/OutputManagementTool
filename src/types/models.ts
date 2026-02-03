@@ -515,3 +515,92 @@ export interface ProcessTableWithDetails extends ProcessTable {
   bpmnDiagram?: BpmnDiagram;
   manual?: Manual;
 }
+
+// ==========================================
+// ユーティリティ型
+// ==========================================
+
+/**
+ * 工程のツリー構造（階層表示用）
+ */
+export interface ProcessTree {
+  process: Process;
+  children: ProcessTree[];
+}
+
+/**
+ * カスタム列の値（DBから取得した形式）
+ */
+export interface ProcessCustomValue {
+  id: string;
+  processId: string;
+  customColumnId: string;
+  value: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ==========================================
+// 型ガードファクトリ
+// ==========================================
+
+/**
+ * ProcessLevel型ガード
+ */
+export function isProcessLevel(value: unknown): value is ProcessLevel {
+  return (
+    value === 'large' ||
+    value === 'medium' ||
+    value === 'small' ||
+    value === 'detail'
+  );
+}
+
+/**
+ * BpmnElementType型ガード
+ */
+export function isBpmnElementType(value: unknown): value is BpmnElementType {
+  return value === 'task' || value === 'event' || value === 'gateway';
+}
+
+/**
+ * BpmnTaskType型ガード
+ */
+export function isBpmnTaskType(value: unknown): value is BpmnTaskType {
+  return (
+    value === 'userTask' ||
+    value === 'serviceTask' ||
+    value === 'manualTask' ||
+    value === 'scriptTask' ||
+    value === 'businessRuleTask' ||
+    value === 'sendTask' ||
+    value === 'receiveTask'
+  );
+}
+
+/**
+ * GatewayType型ガード
+ */
+export function isGatewayType(value: unknown): value is GatewayType {
+  return value === 'exclusive' || value === 'parallel' || value === 'inclusive';
+}
+
+/**
+ * EventType型ガード
+ */
+export function isEventType(value: unknown): value is EventType {
+  return value === 'start' || value === 'end' || value === 'intermediate';
+}
+
+/**
+ * CustomColumnType型ガード
+ */
+export function isCustomColumnType(value: unknown): value is CustomColumnType {
+  return (
+    value === 'TEXT' ||
+    value === 'NUMBER' ||
+    value === 'DATE' ||
+    value === 'SELECT' ||
+    value === 'CHECKBOX'
+  );
+}

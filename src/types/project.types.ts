@@ -1,4 +1,14 @@
-// プロジェクト関連の型定義
+/**
+ * プロジェクト関連の型定義
+ * 
+ * @deprecated Phase 9以降は models.ts の型定義を使用してください。
+ * このファイルは後方互換性のために残されています。
+ * 
+ * 新しいコードでは以下のインポートを使用:
+ * import { Process, Project, ... } from '@/types/models';
+ * または
+ * import { Process, Project, ... } from '@/types';
+ */
 
 export interface Project {
   id: string;
