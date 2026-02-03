@@ -5,14 +5,17 @@ import BpmnJS from 'bpmn-js/lib/Viewer';
 import { Process, Swimlane, ProcessTable } from '@/types/models';
 import { exportProcessTableToBpmnXml } from '@/lib/bpmn-xml-exporter';
 import { downloadBpmnAsExcel } from '@/lib/bpmn-excel-exporter';
-import { Card, CardBody, Button, Spinner } from '@heroui/react';
+import { Card, CardBody, Button, Spinner, ButtonGroup, Tooltip } from '@heroui/react';
 import { 
   MagnifyingGlassMinusIcon, 
   MagnifyingGlassPlusIcon,
   ArrowsPointingOutIcon,
   ArrowDownTrayIcon,
   TableCellsIcon,
+  ClockIcon,
+  Square3Stack3DIcon,
 } from '@heroicons/react/24/outline';
+import { LeadTimeFlowViewer, type ViewMode } from './LeadTimeFlowViewer';
 
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
@@ -28,6 +31,12 @@ interface BpmnViewerProps {
   onElementClick?: (elementId: string) => void;
   height?: string | number;
   className?: string;
+  /** 初期表示モード */
+  initialViewMode?: ViewMode;
+  /** 表示モード切り替え時のコールバック */
+  onViewModeChange?: (mode: ViewMode) => void;
+  /** LT表示の時間スケール（デフォルト: 3600秒=1px） */
+  timeScale?: number;
 }
 
 export const BpmnViewer: React.FC<BpmnViewerProps> = ({
@@ -40,6 +49,9 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
   onElementClick,
   height = '600px',
   className = '',
+  initialViewMode = 'normal',
+  onViewModeChange,
+  timeScale = 3600,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<BpmnJS | null>(null);
@@ -47,6 +59,13 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [generatedXml, setGeneratedXml] = useState<string>('');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+
+  // 表示モード切り替え
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    onViewModeChange?.(mode);
+  };
 
   // BPMNビューアの初期化
   useEffect(() => {
@@ -232,6 +251,22 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
     );
   }
 
+  // LT描画モードの場合は専用ビューアーを表示
+  if (viewMode === 'leadtime') {
+    return (
+      <LeadTimeFlowViewer
+        processes={processes}
+        swimlanes={swimlanes}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        onProcessClick={onElementClick}
+        height={height}
+        className={className}
+        timeScale={timeScale}
+      />
+    );
+  }
+
   return (
     <Card className={className}>
       <CardBody className="p-0">
@@ -247,6 +282,30 @@ export const BpmnViewer: React.FC<BpmnViewerProps> = ({
           </div>
           
           <div className="flex items-center gap-1">
+            {/* 表示モード切替 */}
+            <ButtonGroup size="sm" variant="flat">
+              <Tooltip content="通常描画モード">
+                <Button
+                  isIconOnly
+                  color={viewMode === 'normal' ? 'primary' : 'default'}
+                  onPress={() => handleViewModeChange('normal')}
+                >
+                  <Square3Stack3DIcon className="w-4 h-4" />
+                </Button>
+              </Tooltip>
+              <Tooltip content="LT描画モード（リードタイムで幅を表現）">
+                <Button
+                  isIconOnly
+                  color={viewMode === 'leadtime' ? 'primary' : 'default'}
+                  onPress={() => handleViewModeChange('leadtime')}
+                >
+                  <ClockIcon className="w-4 h-4" />
+                </Button>
+              </Tooltip>
+            </ButtonGroup>
+            
+            <div className="w-px h-6 bg-gray-300 mx-1" />
+            
             <Button
               isIconOnly
               size="sm"

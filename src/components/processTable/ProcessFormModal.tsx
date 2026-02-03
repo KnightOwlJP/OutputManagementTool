@@ -99,6 +99,7 @@ export function ProcessFormModal({
   const [parentSmallName, setParentSmallName] = useState('');
   const [laneId, setLaneId] = useState('');
   const [workHours, setWorkHours] = useState<string>('');
+  const [leadTimeHours, setLeadTimeHours] = useState<string>('');
   const [skillLevel, setSkillLevel] = useState<Process['skillLevel']>('-');
   const [systemName, setSystemName] = useState('');
   const [parallelAllowed, setParallelAllowed] = useState(false);
@@ -140,6 +141,11 @@ export function ProcessFormModal({
       setWorkHours(
         editingProcess.workSeconds !== undefined && editingProcess.workSeconds !== null
           ? String(editingProcess.workSeconds / 3600)
+          : ''
+      );
+      setLeadTimeHours(
+        editingProcess.leadTimeSeconds !== undefined && editingProcess.leadTimeSeconds !== null
+          ? String(editingProcess.leadTimeSeconds / 3600)
           : ''
       );
       setSkillLevel(editingProcess.skillLevel || '-');
@@ -187,6 +193,7 @@ export function ProcessFormModal({
       setParentSmallName('');
       setLaneId(swimlanes[0]?.id || '');
       setWorkHours('');
+      setLeadTimeHours('');
       setSkillLevel('-');
       setSystemName('');
       setParallelAllowed(false);
@@ -235,6 +242,7 @@ export function ProcessFormModal({
       return largeNameValue;
     })();
     const workHoursNumber = workHours.trim() === '' ? undefined : Number(workHours);
+    const leadTimeHoursNumber = leadTimeHours.trim() === '' ? undefined : Number(leadTimeHours);
     const issueWorkHoursNumber = issueWorkHours.trim() === '' ? undefined : Number(issueWorkHours);
     const timeReductionHoursNumber = timeReductionHours.trim() === '' ? undefined : Number(timeReductionHours);
     const rateReductionPercentNumber = rateReductionPercent.trim() === '' ? undefined : Number(rateReductionPercent);
@@ -242,6 +250,7 @@ export function ProcessFormModal({
     if (!currentNameValue) errors.push('工程名は必須です');
     if (!laneId) errors.push('スイムレーンを選択してください');
     if (workHours.trim() !== '' && Number.isNaN(workHoursNumber)) errors.push('工数は数値で入力してください');
+    if (leadTimeHours.trim() !== '' && Number.isNaN(leadTimeHoursNumber)) errors.push('リードタイムは数値で入力してください');
 
     if (processTable.isInvestigation) {
       if (issueWorkHours.trim() !== '' && Number.isNaN(issueWorkHoursNumber as number)) errors.push('課題工数は数値で入力してください');
@@ -276,6 +285,7 @@ export function ProcessFormModal({
         detailName: resolvedDetailName,
         laneId,
         workSeconds: workHoursNumber !== undefined ? workHoursNumber * 3600 : isEditing ? null : undefined,
+        leadTimeSeconds: leadTimeHoursNumber !== undefined ? leadTimeHoursNumber * 3600 : isEditing ? null : undefined,
         skillLevel: skillLevel === '-' ? undefined : skillLevel,
         systemName: normalizedSystemName,
         parallelAllowed,
@@ -360,7 +370,18 @@ export function ProcessFormModal({
                         type="number"
                         value={workHours}
                         onValueChange={setWorkHours}
+                        description="作業にかかる実働時間"
                       />
+                      <Input
+                        label="リードタイム (時間)"
+                        placeholder="例: 24"
+                        type="number"
+                        value={leadTimeHours}
+                        onValueChange={setLeadTimeHours}
+                        description="開始から完了までの経過時間"
+                      />
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
                       <Input
                         label={
                           processTable.level === 'large'

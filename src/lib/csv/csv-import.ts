@@ -41,6 +41,8 @@ export interface ParsedCsvProcess {
   nextDisplayIds?: number[];
   workSeconds?: number;
   workUnitPref?: string;
+  leadTimeSeconds?: number;
+  leadTimeUnit?: string;
   skillLevel?: '-' | 'L' | 'M' | 'H';
   systemName?: string;
   parentDisplayId?: number;
@@ -169,6 +171,7 @@ export function parseProcessCsv(
 
     // 時間の変換（時間→秒）
     const workHours = csvToNumber(raw['workHours']);
+    const leadTimeHours = csvToNumber(raw['leadTimeHours']);
     const issueWorkHours = csvToNumber(raw['issueWorkHours']);
     const timeReductionHours = csvToNumber(raw['timeReductionHours']);
 
@@ -242,6 +245,8 @@ export function parseProcessCsv(
       nextDisplayIds: nextDisplayIds.length > 0 ? nextDisplayIds : undefined,
       workSeconds: workHours !== undefined ? hoursToSeconds(workHours) : undefined,
       workUnitPref: raw['workUnitPref']?.trim() || undefined,
+      leadTimeSeconds: leadTimeHours !== undefined ? hoursToSeconds(leadTimeHours) : undefined,
+      leadTimeUnit: raw['leadTimeUnit']?.trim() || undefined,
       skillLevel: (raw['skillLevel']?.trim() as any) || undefined,
       systemName: raw['systemName']?.trim() || undefined,
       parentDisplayId: csvToNumber(raw['parentDisplayId']),

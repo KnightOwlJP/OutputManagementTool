@@ -179,10 +179,12 @@ function addProcessesSheet(
     'タスク種類',
     '前工程ID',
     '次工程ID',
+    '工数(時間)',
+    'LT(時間)',
   ];
 
   // 列幅
-  const colWidths = [8, 25, 40, 20, 20, 20, 30, 25, 20, 12, 15, 30, 30];
+  const colWidths = [8, 25, 40, 20, 20, 20, 30, 25, 20, 12, 15, 30, 30, 12, 12];
 
   // BPMN詳細情報
   if (includeBpmnDetails) {
@@ -227,6 +229,8 @@ function addProcessesSheet(
         process.taskType || '',
         process.beforeProcessIds?.join(', ') || '',
         process.nextProcessIds?.join(', ') || '',
+        process.workSeconds ? (process.workSeconds / 3600).toFixed(2) : '',
+        process.leadTimeSeconds ? (process.leadTimeSeconds / 3600).toFixed(2) : '',
       ];
 
       // BPMN詳細情報
@@ -330,17 +334,19 @@ export function generateProcessTableTemplate(): ArrayBuffer {
       'タスク種類',
       '前工程ID',
       '次工程ID',
+      '工数(時間)',
+      'LT(時間)',
     ],
-    [1, 'proc-1', '要件ヒアリング', '', '', '', '', 'lane-1', '営業部', 'task', 'userTask', '', 'proc-2'],
-    [2, 'proc-2', '要件定義書作成', '', '', '', '', 'lane-1', '営業部', 'task', 'manualTask', 'proc-1', 'proc-3'],
-    [3, 'proc-3', '設計', '', '', '', '', 'lane-2', '開発部', 'task', 'userTask', 'proc-2', 'proc-4'],
-    [4, 'proc-4', '実装', '', '', '', '', 'lane-2', '開発部', 'task', 'userTask', 'proc-3', 'proc-5'],
-    [5, 'proc-5', 'テスト', '', '', '', '', 'lane-3', '品質管理部', 'task', 'userTask', 'proc-4', ''],
+    [1, 'proc-1', '要件ヒアリング', '', '', '', '', 'lane-1', '営業部', 'task', 'userTask', '', 'proc-2', 2, 8],
+    [2, 'proc-2', '要件定義書作成', '', '', '', '', 'lane-1', '営業部', 'task', 'manualTask', 'proc-1', 'proc-3', 4, 16],
+    [3, 'proc-3', '設計', '', '', '', '', 'lane-2', '開発部', 'task', 'userTask', 'proc-2', 'proc-4', 8, 24],
+    [4, 'proc-4', '実装', '', '', '', '', 'lane-2', '開発部', 'task', 'userTask', 'proc-3', 'proc-5', 40, 120],
+    [5, 'proc-5', 'テスト', '', '', '', '', 'lane-3', '品質管理部', 'task', 'userTask', 'proc-4', '', 16, 48],
   ];
 
   const processSheet = aoaToSheet(processes);
-  setColumnWidths(processSheet, [8, 25, 40, 20, 20, 20, 30, 25, 20, 12, 15, 30, 30]);
-  applyStyleToRange(processSheet, 'A1:M1', HEADER_STYLE);
+  setColumnWidths(processSheet, [8, 25, 40, 20, 20, 20, 30, 25, 20, 12, 15, 30, 30, 12, 12]);
+  applyStyleToRange(processSheet, 'A1:O1', HEADER_STYLE);
   XLSX.utils.book_append_sheet(workbook, processSheet, '工程データ');
 
   return writeWorkbook(workbook);

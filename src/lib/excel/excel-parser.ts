@@ -325,6 +325,10 @@ function parseProcessesSheet(
         return;
       }
 
+      // 工数とLT
+      const workHours = getCellNumber(row['工数(時間)']);
+      const leadTimeHours = getCellNumber(row['LT(時間)']);
+
       const process: Partial<Process> = {
         id,
         name,
@@ -336,6 +340,8 @@ function parseProcessesSheet(
         bpmnElement: (getCellString(row['BPMN要素']) || 'task') as BpmnElementType,
         taskType: trimToUndefined(getCellString(row['タスク種類'])) as BpmnTaskType | undefined,
         displayOrder: getCellNumber(row['順序']) ?? processes.length + 1,
+        workSeconds: workHours !== undefined ? workHours * 3600 : undefined,
+        leadTimeSeconds: leadTimeHours !== undefined ? leadTimeHours * 3600 : undefined,
       };
 
       // 前工程・次工程

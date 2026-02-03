@@ -144,7 +144,11 @@ export interface Process {
 
   // 工数（内部秒保持）
   workSeconds?: number;
-  workUnitPref?: string;
+  workUnitPref?: 'seconds' | 'minutes' | 'hours' | 'days';
+  
+  // リードタイム（LT）
+  leadTimeSeconds?: number;
+  leadTimeUnit?: 'seconds' | 'minutes' | 'hours' | 'days';
 
   // 属性
   skillLevel?: '-' | 'L' | 'M' | 'H';
@@ -357,7 +361,9 @@ export interface CreateProcessDto {
   stepOrder: number;
   displayId?: number;
   workSeconds?: number;
-  workUnitPref?: string;
+  workUnitPref?: 'seconds' | 'minutes' | 'hours' | 'days';
+  leadTimeSeconds?: number;
+  leadTimeUnit?: 'seconds' | 'minutes' | 'hours' | 'days';
   skillLevel?: '-' | 'L' | 'M' | 'H';
   systemName?: string;
   parallelAllowed?: boolean;
@@ -393,7 +399,9 @@ export interface UpdateProcessDto {
   stepOrder?: number;
   displayId?: number;
   workSeconds?: number;
-  workUnitPref?: string;
+  workUnitPref?: 'seconds' | 'minutes' | 'hours' | 'days';
+  leadTimeSeconds?: number;
+  leadTimeUnit?: 'seconds' | 'minutes' | 'hours' | 'days';
   skillLevel?: '-' | 'L' | 'M' | 'H';
   systemName?: string;
   parallelAllowed?: boolean;

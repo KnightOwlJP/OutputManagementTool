@@ -137,6 +137,27 @@ export const SKILL_LEVEL_LABELS: Record<SkillLevel, string> = {
 } as const;
 
 // ==========================================
+// 時間単位関連
+// ==========================================
+
+export const TIME_UNITS = ['seconds', 'minutes', 'hours', 'days'] as const;
+export type TimeUnit = (typeof TIME_UNITS)[number];
+
+export const TIME_UNIT_LABELS: Record<TimeUnit, string> = {
+  seconds: '秒',
+  minutes: '分',
+  hours: '時間',
+  days: '日',
+} as const;
+
+export const TIME_UNIT_SECONDS: Record<TimeUnit, number> = {
+  seconds: 1,
+  minutes: 60,
+  hours: 3600,
+  days: 86400,
+} as const;
+
+// ==========================================
 // DataObject関連
 // ==========================================
 
