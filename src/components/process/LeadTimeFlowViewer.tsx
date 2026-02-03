@@ -68,12 +68,25 @@ const formatDuration = (seconds: number | undefined, unit?: TimeUnit): string =>
     return `${value.toFixed(1)}${TIME_UNIT_LABELS[unit]}`;
   }
   
-  // 自動フォーマット
+  // 自動フォーマット（大きい単位から順に確認）
+  // 月（30日以上）
+  if (seconds >= 2592000) {
+    return `${(seconds / 2592000).toFixed(1)}月`;
+  }
+  // 週（7日以上）
+  if (seconds >= 604800) {
+    return `${(seconds / 604800).toFixed(1)}週`;
+  }
+  // 日（24時間以上）
   if (seconds >= 86400) {
     return `${(seconds / 86400).toFixed(1)}日`;
-  } else if (seconds >= 3600) {
+  }
+  // 時間（1時間以上）
+  if (seconds >= 3600) {
     return `${(seconds / 3600).toFixed(1)}時間`;
-  } else if (seconds >= 60) {
+  }
+  // 分（1分以上）
+  if (seconds >= 60) {
     return `${(seconds / 60).toFixed(0)}分`;
   }
   return `${seconds}秒`;

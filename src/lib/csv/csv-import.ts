@@ -22,6 +22,14 @@ import type { CustomColumn, DataObject } from '@/types/models';
 // 型定義
 // ==========================================
 
+// 有効な時間単位
+const VALID_TIME_UNITS = ['seconds', 'minutes', 'hours', 'days', 'weeks', 'months'] as const;
+type ValidTimeUnit = typeof VALID_TIME_UNITS[number];
+
+function isValidTimeUnit(unit: string | undefined): unit is ValidTimeUnit {
+  return unit !== undefined && VALID_TIME_UNITS.includes(unit as ValidTimeUnit);
+}
+
 export interface ParsedCsvProcess {
   displayId?: number;
   name: string;
@@ -40,9 +48,9 @@ export interface ParsedCsvProcess {
   beforeDisplayIds: number[];
   nextDisplayIds?: number[];
   workSeconds?: number;
-  workUnitPref?: string;
+  workUnitPref?: ValidTimeUnit;
   leadTimeSeconds?: number;
-  leadTimeUnit?: string;
+  leadTimeUnit?: ValidTimeUnit;
   skillLevel?: '-' | 'L' | 'M' | 'H';
   systemName?: string;
   parentDisplayId?: number;
@@ -244,9 +252,9 @@ export function parseProcessCsv(
       beforeDisplayIds,
       nextDisplayIds: nextDisplayIds.length > 0 ? nextDisplayIds : undefined,
       workSeconds: workHours !== undefined ? hoursToSeconds(workHours) : undefined,
-      workUnitPref: raw['workUnitPref']?.trim() || undefined,
+      workUnitPref: isValidTimeUnit(raw['workUnitPref']?.trim()) ? raw['workUnitPref'].trim() as ValidTimeUnit : undefined,
       leadTimeSeconds: leadTimeHours !== undefined ? hoursToSeconds(leadTimeHours) : undefined,
-      leadTimeUnit: raw['leadTimeUnit']?.trim() || undefined,
+      leadTimeUnit: isValidTimeUnit(raw['leadTimeUnit']?.trim()) ? raw['leadTimeUnit'].trim() as ValidTimeUnit : undefined,
       skillLevel: (raw['skillLevel']?.trim() as any) || undefined,
       systemName: raw['systemName']?.trim() || undefined,
       parentDisplayId: csvToNumber(raw['parentDisplayId']),

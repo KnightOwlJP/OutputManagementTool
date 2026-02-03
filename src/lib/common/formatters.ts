@@ -57,6 +57,119 @@ export function hoursToSeconds(hours: number | undefined | null): number | undef
 }
 
 /**
+ * 時間単位の秒数マップ
+ * 月は30日として計算（業務上の一般的な近似値）
+ */
+const TIME_UNIT_TO_SECONDS: Record<string, number> = {
+  seconds: 1,
+  minutes: 60,
+  hours: 3600,
+  days: 86400,
+  weeks: 604800,      // 7 * 86400
+  months: 2592000,    // 30 * 86400
+};
+
+/**
+ * 任意の時間単位から秒に変換
+ * @param value - 変換する値
+ * @param unit - 時間単位
+ * @returns 秒数（入力がundefined/nullの場合はundefined）
+ */
+export function toSeconds(
+  value: number | undefined | null,
+  unit: string
+): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const factor = TIME_UNIT_TO_SECONDS[unit];
+  if (factor === undefined) {
+    console.warn(`Unknown time unit: ${unit}, treating as hours`);
+    return value * 3600;
+  }
+  return value * factor;
+}
+
+/**
+ * 秒から任意の時間単位に変換
+ * @param seconds - 秒数
+ * @param unit - 変換先の時間単位
+ * @returns 変換後の値（入力がundefined/nullの場合はundefined）
+ */
+export function fromSeconds(
+  seconds: number | undefined | null,
+  unit: string
+): number | undefined {
+  if (seconds === undefined || seconds === null) {
+    return undefined;
+  }
+  const factor = TIME_UNIT_TO_SECONDS[unit];
+  if (factor === undefined) {
+    console.warn(`Unknown time unit: ${unit}, treating as hours`);
+    return seconds / 3600;
+  }
+  return seconds / factor;
+}
+
+/**
+ * 秒数を最適な単位で表示するためのフォーマット
+ * @param seconds - 秒数
+ * @returns フォーマットされた文字列（例: "2.5時間", "3日", "1週"）
+ */
+export function formatDuration(seconds: number | undefined | null): string {
+  if (seconds === undefined || seconds === null) {
+    return '-';
+  }
+
+  // 月（30日以上）
+  if (seconds >= 2592000) {
+    const months = seconds / 2592000;
+    return `${months.toFixed(1)}月`;
+  }
+  // 週（7日以上）
+  if (seconds >= 604800) {
+    const weeks = seconds / 604800;
+    return `${weeks.toFixed(1)}週`;
+  }
+  // 日（24時間以上）
+  if (seconds >= 86400) {
+    const days = seconds / 86400;
+    return `${days.toFixed(1)}日`;
+  }
+  // 時間（1時間以上）
+  if (seconds >= 3600) {
+    const hours = seconds / 3600;
+    return `${hours.toFixed(1)}時間`;
+  }
+  // 分（1分以上）
+  if (seconds >= 60) {
+    const minutes = seconds / 60;
+    return `${minutes.toFixed(0)}分`;
+  }
+  // 秒
+  return `${seconds.toFixed(0)}秒`;
+}
+
+/**
+ * 秒数を指定された単位でフォーマット
+ * @param seconds - 秒数
+ * @param unit - 表示単位
+ * @param decimals - 小数点以下の桁数（デフォルト: 2）
+ * @returns フォーマットされた数値文字列
+ */
+export function formatDurationWithUnit(
+  seconds: number | undefined | null,
+  unit: string,
+  decimals = 2
+): string {
+  const value = fromSeconds(seconds, unit);
+  if (value === undefined) {
+    return '';
+  }
+  return value.toFixed(decimals);
+}
+
+/**
  * 数値をパーセンテージ文字列に変換
  */
 export function toPercentage(value: number, decimals = 1): string {

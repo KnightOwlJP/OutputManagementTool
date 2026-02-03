@@ -140,7 +140,7 @@ export const SKILL_LEVEL_LABELS: Record<SkillLevel, string> = {
 // 時間単位関連
 // ==========================================
 
-export const TIME_UNITS = ['seconds', 'minutes', 'hours', 'days'] as const;
+export const TIME_UNITS = ['seconds', 'minutes', 'hours', 'days', 'weeks', 'months'] as const;
 export type TimeUnit = (typeof TIME_UNITS)[number];
 
 export const TIME_UNIT_LABELS: Record<TimeUnit, string> = {
@@ -148,14 +148,29 @@ export const TIME_UNIT_LABELS: Record<TimeUnit, string> = {
   minutes: '分',
   hours: '時間',
   days: '日',
+  weeks: '週',
+  months: '月',
 } as const;
 
+/**
+ * 各単位を秒に変換する係数
+ * 月は30日として計算（業務上の一般的な近似値）
+ */
 export const TIME_UNIT_SECONDS: Record<TimeUnit, number> = {
   seconds: 1,
   minutes: 60,
   hours: 3600,
   days: 86400,
+  weeks: 604800,      // 7 * 86400
+  months: 2592000,    // 30 * 86400
 } as const;
+
+/**
+ * 入力用の推奨単位リスト（工数・リードタイム入力向け）
+ * 秒・分は入力には使わないことが多いので、時間以上を推奨
+ */
+export const TIME_UNITS_FOR_INPUT = ['hours', 'days', 'weeks', 'months'] as const;
+export type TimeUnitForInput = (typeof TIME_UNITS_FOR_INPUT)[number];
 
 // ==========================================
 // DataObject関連

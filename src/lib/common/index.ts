@@ -53,6 +53,11 @@ export {
   secondsToHours,
   hoursToSeconds,
   toPercentage,
+  // 時間単位変換
+  toSeconds,
+  fromSeconds,
+  formatDuration,
+  formatDurationWithUnit,
   // 文字列
   toString,
   trimToUndefined,
