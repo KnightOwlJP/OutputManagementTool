@@ -24,6 +24,14 @@ import {
 import { Process, Swimlane, BpmnTaskType, BpmnElementType, GatewayType, EventType, IntermediateEventType, DataObject, ConditionalFlow, MessageFlow, CustomColumn, ProcessTable } from '@/types/models';
 import { useToast } from '@/contexts/ToastContext';
 import { CustomColumnInputGroup } from './CustomColumnInput';
+import { toSeconds, fromSeconds } from '@/lib/common';
+import { TIME_UNITS_FOR_INPUT, TIME_UNIT_LABELS, type TimeUnit } from '@/lib/common/constants';
+
+// 入力用の時間単位オプション
+const TIME_UNIT_OPTIONS: { value: TimeUnit; label: string }[] = TIME_UNITS_FOR_INPUT.map(unit => ({
+  value: unit,
+  label: TIME_UNIT_LABELS[unit],
+}));
 
 interface ProcessFormModalProps {
   isOpen: boolean;
@@ -98,7 +106,10 @@ export function ProcessFormModal({
   const [parentMediumName, setParentMediumName] = useState('');
   const [parentSmallName, setParentSmallName] = useState('');
   const [laneId, setLaneId] = useState('');
-  const [workHours, setWorkHours] = useState<string>('');
+  const [workValue, setWorkValue] = useState<string>('');
+  const [workUnit, setWorkUnit] = useState<TimeUnit>('hours');
+  const [leadTimeValue, setLeadTimeValue] = useState<string>('');
+  const [leadTimeUnit, setLeadTimeUnit] = useState<TimeUnit>('hours');
   const [skillLevel, setSkillLevel] = useState<Process['skillLevel']>('-');
   const [systemName, setSystemName] = useState('');
   const [parallelAllowed, setParallelAllowed] = useState(false);
@@ -137,9 +148,20 @@ export function ProcessFormModal({
       setParentMediumName(editingProcess.mediumName || '');
       setParentSmallName(editingProcess.smallName || '');
       setLaneId(editingProcess.laneId);
-      setWorkHours(
+      // 工数の初期値設定（保存された単位があればそれを使用、なければ時間）
+      const savedWorkUnit = (editingProcess.workUnitPref as TimeUnit) || 'hours';
+      setWorkUnit(TIME_UNITS_FOR_INPUT.includes(savedWorkUnit as any) ? savedWorkUnit : 'hours');
+      setWorkValue(
         editingProcess.workSeconds !== undefined && editingProcess.workSeconds !== null
-          ? String(editingProcess.workSeconds / 3600)
+          ? String(fromSeconds(editingProcess.workSeconds, savedWorkUnit) ?? '')
+          : ''
+      );
+      // リードタイムの初期値設定（保存された単位があればそれを使用、なければ時間）
+      const savedLeadTimeUnit = (editingProcess.leadTimeUnit as TimeUnit) || 'hours';
+      setLeadTimeUnit(TIME_UNITS_FOR_INPUT.includes(savedLeadTimeUnit as any) ? savedLeadTimeUnit : 'hours');
+      setLeadTimeValue(
+        editingProcess.leadTimeSeconds !== undefined && editingProcess.leadTimeSeconds !== null
+          ? String(fromSeconds(editingProcess.leadTimeSeconds, savedLeadTimeUnit) ?? '')
           : ''
       );
       setSkillLevel(editingProcess.skillLevel || '-');
@@ -186,7 +208,10 @@ export function ProcessFormModal({
       setParentMediumName('');
       setParentSmallName('');
       setLaneId(swimlanes[0]?.id || '');
-      setWorkHours('');
+      setWorkValue('');
+      setWorkUnit('hours');
+      setLeadTimeValue('');
+      setLeadTimeUnit('hours');
       setSkillLevel('-');
       setSystemName('');
       setParallelAllowed(false);
@@ -234,14 +259,16 @@ export function ProcessFormModal({
       if (processTable.level === 'detail') return detailNameValue;
       return largeNameValue;
     })();
-    const workHoursNumber = workHours.trim() === '' ? undefined : Number(workHours);
+    const workValueNumber = workValue.trim() === '' ? undefined : Number(workValue);
+    const leadTimeValueNumber = leadTimeValue.trim() === '' ? undefined : Number(leadTimeValue);
     const issueWorkHoursNumber = issueWorkHours.trim() === '' ? undefined : Number(issueWorkHours);
     const timeReductionHoursNumber = timeReductionHours.trim() === '' ? undefined : Number(timeReductionHours);
     const rateReductionPercentNumber = rateReductionPercent.trim() === '' ? undefined : Number(rateReductionPercent);
 
     if (!currentNameValue) errors.push('工程名は必須です');
     if (!laneId) errors.push('スイムレーンを選択してください');
-    if (workHours.trim() !== '' && Number.isNaN(workHoursNumber)) errors.push('工数は数値で入力してください');
+    if (workValue.trim() !== '' && Number.isNaN(workValueNumber)) errors.push('工数は数値で入力してください');
+    if (leadTimeValue.trim() !== '' && Number.isNaN(leadTimeValueNumber)) errors.push('リードタイムは数値で入力してください');
 
     if (processTable.isInvestigation) {
       if (issueWorkHours.trim() !== '' && Number.isNaN(issueWorkHoursNumber as number)) errors.push('課題工数は数値で入力してください');
@@ -275,7 +302,10 @@ export function ProcessFormModal({
         smallName: resolvedSmallName,
         detailName: resolvedDetailName,
         laneId,
-        workSeconds: workHoursNumber !== undefined ? workHoursNumber * 3600 : isEditing ? null : undefined,
+        workSeconds: workValueNumber !== undefined ? toSeconds(workValueNumber, workUnit) : isEditing ? null : undefined,
+        workUnitPref: workValueNumber !== undefined ? workUnit : undefined,
+        leadTimeSeconds: leadTimeValueNumber !== undefined ? toSeconds(leadTimeValueNumber, leadTimeUnit) : isEditing ? null : undefined,
+        leadTimeUnit: leadTimeValueNumber !== undefined ? leadTimeUnit : undefined,
         skillLevel: skillLevel === '-' ? undefined : skillLevel,
         systemName: normalizedSystemName,
         parallelAllowed,
@@ -354,13 +384,64 @@ export function ProcessFormModal({
                 <Tab key="basic" title="基本情報">
                   <div className="space-y-4 py-4">
                     <div className="grid md:grid-cols-2 gap-4">
-                      <Input
-                        label="工数 (時間)"
-                        placeholder="例: 1.5"
-                        type="number"
-                        value={workHours}
-                        onValueChange={setWorkHours}
-                      />
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium">工数</label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="例: 1.5"
+                            type="number"
+                            value={workValue}
+                            onValueChange={setWorkValue}
+                            classNames={{ base: 'flex-1' }}
+                          />
+                          <Select
+                            selectedKeys={[workUnit]}
+                            onSelectionChange={(keys) => {
+                              const selected = Array.from(keys)[0] as TimeUnit;
+                              setWorkUnit(selected);
+                            }}
+                            classNames={{ base: 'w-24' }}
+                            aria-label="工数の単位"
+                          >
+                            {TIME_UNIT_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} textValue={option.label}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </Select>
+                        </div>
+                        <p className="text-xs text-gray-500">作業にかかる実働時間</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-sm font-medium">リードタイム</label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="例: 2"
+                            type="number"
+                            value={leadTimeValue}
+                            onValueChange={setLeadTimeValue}
+                            classNames={{ base: 'flex-1' }}
+                          />
+                          <Select
+                            selectedKeys={[leadTimeUnit]}
+                            onSelectionChange={(keys) => {
+                              const selected = Array.from(keys)[0] as TimeUnit;
+                              setLeadTimeUnit(selected);
+                            }}
+                            classNames={{ base: 'w-24' }}
+                            aria-label="リードタイムの単位"
+                          >
+                            {TIME_UNIT_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} textValue={option.label}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </Select>
+                        </div>
+                        <p className="text-xs text-gray-500">開始から完了までの経過時間</p>
+                      </div>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
                       <Input
                         label={
                           processTable.level === 'large'
