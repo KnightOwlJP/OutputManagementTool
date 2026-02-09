@@ -211,27 +211,106 @@ export const useProcessStore = create<ProcessStore>((set, get) => ({
 }));
 
 // ==========================================
-// セレクタ
+// セレクタ（メモ化対応）
 // ==========================================
 
+// キャッシュ用の変数
+let _processCountCache: { processes: Process[]; count: number } | null = null;
+let _processMapCache: { processes: Process[]; map: Map<string, Process> } | null = null;
+let _laneCountCache: { processes: Process[]; counts: Record<string, number> } | null = null;
+let _sortedProcessesCache: { processes: Process[]; sorted: Process[] } | null = null;
+
 /**
- * 工程数を取得
+ * 工程数を取得（メモ化）
  */
-export const selectProcessCount = (state: ProcessStore) => state.processes.length;
+export const selectProcessCount = (state: ProcessStore): number => {
+  if (_processCountCache && _processCountCache.processes === state.processes) {
+    return _processCountCache.count;
+  }
+  const count = state.processes.length;
+  _processCountCache = { processes: state.processes, count };
+  return count;
+};
+
+/**
+ * 工程のIDマップを取得（O(1)検索用、メモ化）
+ */
+export const selectProcessMap = (state: ProcessStore): Map<string, Process> => {
+  if (_processMapCache && _processMapCache.processes === state.processes) {
+    return _processMapCache.map;
+  }
+  const map = new Map(state.processes.map((p) => [p.id, p]));
+  _processMapCache = { processes: state.processes, map };
+  return map;
+};
+
+/**
+ * ソート済み工程を取得（メモ化）
+ */
+export const selectSortedProcesses = (state: ProcessStore): Process[] => {
+  if (_sortedProcessesCache && _sortedProcessesCache.processes === state.processes) {
+    return _sortedProcessesCache.sorted;
+  }
+  const sorted = [...state.processes].sort((a, b) => a.displayOrder - b.displayOrder);
+  _sortedProcessesCache = { processes: state.processes, sorted };
+  return sorted;
+};
 
 /**
  * 選択中の工程を取得
  */
-export const selectSelectedProcesses = (state: ProcessStore) =>
-  state.processes.filter((p) => state.selectedProcesses.includes(p.id));
+export const selectSelectedProcesses = (state: ProcessStore): Process[] => {
+  const processMap = selectProcessMap(state);
+  return state.selectedProcesses
+    .map((id) => processMap.get(id))
+    .filter((p): p is Process => p !== undefined);
+};
 
 /**
- * レーンごとの工程数を取得
+ * レーンごとの工程数を取得（メモ化）
  */
-export const selectProcessCountByLane = (state: ProcessStore) => {
+export const selectProcessCountByLane = (state: ProcessStore): Record<string, number> => {
+  if (_laneCountCache && _laneCountCache.processes === state.processes) {
+    return _laneCountCache.counts;
+  }
   const counts: Record<string, number> = {};
   state.processes.forEach((p) => {
     counts[p.laneId] = (counts[p.laneId] || 0) + 1;
   });
+  _laneCountCache = { processes: state.processes, counts };
   return counts;
+};
+
+/**
+ * タスクタイプごとの工程数を取得
+ */
+export const selectProcessCountByTaskType = (state: ProcessStore): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  state.processes.forEach((p) => {
+    if (p.taskType) {
+      counts[p.taskType] = (counts[p.taskType] || 0) + 1;
+    }
+  });
+  return counts;
+};
+
+/**
+ * 指定レーンの工程を取得
+ */
+export const selectProcessesByLane = (state: ProcessStore, laneId: string): Process[] => {
+  return state.processes.filter((p) => p.laneId === laneId);
+};
+
+/**
+ * ルート工程（親なし）を取得
+ */
+export const selectRootProcesses = (state: ProcessStore): Process[] => {
+  return selectSortedProcesses(state).filter((p) => !p.parentProcessId);
+};
+
+/**
+ * 指定工程の子工程を取得
+ */
+export const selectChildProcesses = (state: ProcessStore, parentId: string): Process[] => {
+  return state.processes.filter((p) => p.parentProcessId === parentId);
 };
