@@ -45,6 +45,17 @@ interface TimeScale {
   totalSeconds: number;
 }
 
+interface ProcessGroup {
+  name: string;
+  processIds: string[];
+  bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
 // ==========================================
 // 定数
 // ==========================================
@@ -58,6 +69,8 @@ const NORMAL_BOX_WIDTH = 120;
 const TIMELINE_HEIGHT = 40;
 const MIN_BOX_WIDTH = 40;
 const PIXELS_PER_UNIT = 80; // 1単位あたりのピクセル数
+const GROUP_PADDING = 8; // グループ枠の余白
+const GROUP_LABEL_HEIGHT = 18; // グループラベルの高さ
 
 // スイムレーンの色を取得（明度を上げた背景色）
 const getLaneBackgroundColor = (color: string, alpha = 0.1): string => {
@@ -248,6 +261,83 @@ const calculateTimeScale = (
   };
 };
 
+/**
+ * 工程の1つ上位の階層名を取得
+ * 設定されている最も詳細な階層の1つ上を返す
+ */
+const getParentGroupName = (process: Process): string | null => {
+  // 最も詳細なレベルから順に確認し、1つ上のレベル名を返す
+  if (process.detailName) {
+    // 詳細工程 → 小工程名でグループ化
+    return process.smallName || null;
+  }
+  if (process.smallName) {
+    // 小工程 → 中工程名でグループ化
+    return process.mediumName || null;
+  }
+  if (process.mediumName) {
+    // 中工程 → 大工程名でグループ化
+    return process.largeName || null;
+  }
+  // 大工程のみ、または何も設定されていない → グループ化なし
+  return null;
+};
+
+/**
+ * 工程をグループ化し、各グループの境界を計算
+ */
+const calculateProcessGroups = (
+  processes: Process[],
+  positions: Map<string, ProcessPosition>
+): ProcessGroup[] => {
+  // グループ名ごとに工程を収集
+  const groupMap = new Map<string, string[]>();
+  
+  processes.forEach(process => {
+    const groupName = getParentGroupName(process);
+    if (groupName) {
+      const existing = groupMap.get(groupName) || [];
+      existing.push(process.id);
+      groupMap.set(groupName, existing);
+    }
+  });
+
+  // 各グループの境界ボックスを計算
+  const groups: ProcessGroup[] = [];
+  
+  groupMap.forEach((processIds, name) => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    processIds.forEach(id => {
+      const pos = positions.get(id);
+      if (pos) {
+        minX = Math.min(minX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxX = Math.max(maxX, pos.x + pos.width);
+        maxY = Math.max(maxY, pos.y + PROCESS_HEIGHT);
+      }
+    });
+
+    if (minX !== Infinity) {
+      groups.push({
+        name,
+        processIds,
+        bounds: {
+          x: minX - GROUP_PADDING,
+          y: minY - GROUP_PADDING - GROUP_LABEL_HEIGHT,
+          width: maxX - minX + GROUP_PADDING * 2,
+          height: maxY - minY + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
+        },
+      });
+    }
+  });
+
+  return groups;
+};
+
 // ==========================================
 // コンポーネント
 // ==========================================
@@ -378,6 +468,11 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
     }
   }, [sortedProcesses, sortedLanes, laneIndexMap, viewMode, processTimes, timeScale]);
 
+  // 工程グループの計算
+  const processGroups = useMemo(() => {
+    return calculateProcessGroups(sortedProcesses, layout.positions);
+  }, [sortedProcesses, layout.positions]);
+
   // ズーム操作
   const handleZoomIn = () => setZoom(z => Math.min(z + 0.1, 3));
   const handleZoomOut = () => setZoom(z => Math.max(z - 0.1, 0.3));
@@ -405,6 +500,55 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
 
   const handleMouseUp = () => {
     setIsDragging(false);
+  };
+
+  // グループ枠のレンダリング
+  const renderProcessGroups = () => {
+    if (processGroups.length === 0) return null;
+
+    return processGroups.map((group, index) => {
+      const { bounds, name } = group;
+      
+      return (
+        <g key={`group-${index}-${name}`}>
+          {/* グループ枠（破線） */}
+          <rect
+            x={bounds.x}
+            y={bounds.y}
+            width={bounds.width}
+            height={bounds.height}
+            fill="none"
+            stroke="#6B7280"
+            strokeWidth={1.5}
+            strokeDasharray="6 3"
+            rx={6}
+            ry={6}
+          />
+          {/* グループラベル背景 */}
+          <rect
+            x={bounds.x}
+            y={bounds.y}
+            width={Math.min(bounds.width, name.length * 12 + 16)}
+            height={GROUP_LABEL_HEIGHT}
+            fill="#F3F4F6"
+            stroke="#6B7280"
+            strokeWidth={1.5}
+            rx={4}
+            ry={4}
+          />
+          {/* グループラベルテキスト */}
+          <text
+            x={bounds.x + 8}
+            y={bounds.y + GROUP_LABEL_HEIGHT - 5}
+            fontSize="11"
+            fontWeight="medium"
+            fill="#374151"
+          >
+            {name}
+          </text>
+        </g>
+      );
+    });
   };
 
   // 時間軸目盛りのレンダリング
@@ -770,6 +914,9 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
                 </g>
               );
             })}
+
+            {/* 工程グループ（破線枠） */}
+            {renderProcessGroups()}
 
             {/* 接続線 */}
             {renderConnections()}
