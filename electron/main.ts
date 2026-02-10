@@ -16,6 +16,7 @@ import { registerBpmnElementHandlers } from './ipc/bpmnElement.handlers';
 import { registerBackupHandlers } from './ipc/backup.handlers';
 import { registerBackupSchedulerHandlers } from './ipc/backup.scheduler';
 import { registerSyncSchedulerHandlers } from './ipc/sync.scheduler';
+import { registerFileHandlers } from './ipc/file.handlers';
 // V2: 新規ハンドラー
 import { registerProcessTableHandlers } from './ipc/processTable.handlers';
 import { registerDataObjectHandlers } from './ipc/dataObject.handlers';
@@ -192,6 +193,7 @@ app.whenReady().then(async () => {
     registerBpmnElementHandlers(); // Phase 7.3: BPMN要素管理（V2で非推奨）
     registerBackupHandlers(); // バックアップ機能
     registerBackupSchedulerHandlers(); // 自動バックアップスケジューラー
+    registerFileHandlers(); // ファイル操作ダイアログ
     // registerSyncSchedulerHandlers(); // 自動同期スケジューラー（Phase 9では非推奨）
     logger.info('App', 'IPC handlers registered successfully');
   } catch (error) {

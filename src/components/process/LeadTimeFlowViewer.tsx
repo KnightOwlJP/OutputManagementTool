@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { Card, CardBody, Button, Tooltip, ButtonGroup } from '@heroui/react';
 import {
   MagnifyingGlassMinusIcon,
@@ -26,12 +26,34 @@ interface LeadTimeFlowViewerProps {
   onProcessClick?: (processId: string) => void;
   height?: string | number;
   className?: string;
-  /** LT表示の時間スケール（1px = 何秒か） */
-  timeScale?: number;
-  /** LT表示の最小ボックス幅 */
-  minBoxWidth?: number;
-  /** LT表示の最大ボックス幅 */
-  maxBoxWidth?: number;
+}
+
+interface ProcessPosition {
+  x: number;
+  y: number;
+  width: number;
+  startTime: number;
+  endTime: number;
+}
+
+interface TimeScale {
+  unit: TimeUnit;
+  unitLabel: string;
+  unitSeconds: number;
+  pixelsPerUnit: number;
+  totalUnits: number;
+  totalSeconds: number;
+}
+
+interface ProcessGroup {
+  name: string;
+  processIds: string[];
+  bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 // ==========================================
@@ -41,12 +63,14 @@ interface LeadTimeFlowViewerProps {
 const LANE_HEIGHT = 80;
 const LANE_HEADER_WIDTH = 150;
 const PROCESS_HEIGHT = 50;
-const PROCESS_GAP = 20;
-const PROCESS_PADDING = 15;
+const PROCESS_GAP = 10;
+const PROCESS_PADDING = 20;
 const NORMAL_BOX_WIDTH = 120;
-const MIN_LT_BOX_WIDTH = 60;
-const MAX_LT_BOX_WIDTH = 400;
-const DEFAULT_TIME_SCALE = 3600; // 1px = 1秒、デフォルト1時間=1px
+const TIMELINE_HEIGHT = 40;
+const MIN_BOX_WIDTH = 40;
+const PIXELS_PER_UNIT = 80; // 1単位あたりのピクセル数
+const GROUP_PADDING = 8; // グループ枠の余白
+const GROUP_LABEL_HEIGHT = 18; // グループラベルの高さ
 
 // スイムレーンの色を取得（明度を上げた背景色）
 const getLaneBackgroundColor = (color: string, alpha = 0.1): string => {
@@ -58,54 +82,260 @@ const getLaneBackgroundColor = (color: string, alpha = 0.1): string => {
 // ==========================================
 
 /**
- * 秒数を人間が読みやすい形式に変換
+ * 秒数を指定された単位で表示
  */
-const formatDuration = (seconds: number | undefined, unit?: TimeUnit): string => {
+const formatDuration = (seconds: number | undefined, unit: TimeUnit): string => {
   if (seconds === undefined || seconds === 0) return '-';
   
-  if (unit && TIME_UNIT_SECONDS[unit]) {
-    const value = seconds / TIME_UNIT_SECONDS[unit];
-    return `${value.toFixed(1)}${TIME_UNIT_LABELS[unit]}`;
-  }
+  const unitSeconds = TIME_UNIT_SECONDS[unit];
+  const value = seconds / unitSeconds;
   
-  // 自動フォーマット（大きい単位から順に確認）
-  // 月（30日以上）
-  if (seconds >= 2592000) {
-    return `${(seconds / 2592000).toFixed(1)}月`;
+  // 小数点以下の桁数を調整
+  if (value >= 100) {
+    return `${Math.round(value)}${TIME_UNIT_LABELS[unit]}`;
+  } else if (value >= 10) {
+    return `${value.toFixed(1)}${TIME_UNIT_LABELS[unit]}`;
+  } else {
+    return `${value.toFixed(2)}${TIME_UNIT_LABELS[unit]}`;
   }
-  // 週（7日以上）
-  if (seconds >= 604800) {
-    return `${(seconds / 604800).toFixed(1)}週`;
-  }
-  // 日（24時間以上）
-  if (seconds >= 86400) {
-    return `${(seconds / 86400).toFixed(1)}日`;
-  }
-  // 時間（1時間以上）
-  if (seconds >= 3600) {
-    return `${(seconds / 3600).toFixed(1)}時間`;
-  }
-  // 分（1分以上）
-  if (seconds >= 60) {
-    return `${(seconds / 60).toFixed(0)}分`;
-  }
-  return `${seconds}秒`;
 };
 
 /**
- * LTに基づいてボックス幅を計算
+ * 工程データから適切な時間単位を選択
  */
-const calculateBoxWidth = (
-  leadTimeSeconds: number | undefined,
-  timeScale: number,
-  minWidth: number,
-  maxWidth: number
-): number => {
-  if (!leadTimeSeconds || leadTimeSeconds <= 0) {
-    return minWidth;
+const selectOptimalTimeUnit = (processes: Process[]): TimeUnit => {
+  // 工程に設定されている単位を収集
+  const unitCounts = new Map<TimeUnit, number>();
+  let maxLeadTime = 0;
+
+  processes.forEach(p => {
+    if (p.leadTimeSeconds) {
+      maxLeadTime = Math.max(maxLeadTime, p.leadTimeSeconds);
+    }
+    if (p.leadTimeUnit) {
+      unitCounts.set(p.leadTimeUnit, (unitCounts.get(p.leadTimeUnit) || 0) + 1);
+    }
+  });
+
+  // 最も多く使われている単位があればそれを使用
+  let mostUsedUnit: TimeUnit | null = null;
+  let maxCount = 0;
+  unitCounts.forEach((count, unit) => {
+    if (count > maxCount) {
+      maxCount = count;
+      mostUsedUnit = unit;
+    }
+  });
+
+  if (mostUsedUnit && maxCount > 0) {
+    return mostUsedUnit;
   }
-  const width = leadTimeSeconds / timeScale;
-  return Math.max(minWidth, Math.min(maxWidth, width));
+
+  // 設定された単位がない場合は、最大リードタイムから適切な単位を選択
+  if (maxLeadTime >= TIME_UNIT_SECONDS.months) {
+    return 'months';
+  } else if (maxLeadTime >= TIME_UNIT_SECONDS.weeks) {
+    return 'weeks';
+  } else if (maxLeadTime >= TIME_UNIT_SECONDS.days) {
+    return 'days';
+  } else if (maxLeadTime >= TIME_UNIT_SECONDS.hours) {
+    return 'hours';
+  } else if (maxLeadTime >= TIME_UNIT_SECONDS.minutes) {
+    return 'minutes';
+  }
+  return 'hours'; // デフォルト
+};
+
+/**
+ * 工程の開始時刻を計算（前工程終了位置から）
+ * トポロジカルソートを使用して依存関係を解決
+ */
+const calculateProcessStartTimes = (
+  processes: Process[]
+): Map<string, { startTime: number; endTime: number }> => {
+  const result = new Map<string, { startTime: number; endTime: number }>();
+  const processMap = new Map(processes.map(p => [p.id, p]));
+  
+  // 入次数を計算（何個の前工程があるか）
+  const inDegree = new Map<string, number>();
+  const successors = new Map<string, string[]>();
+  
+  processes.forEach(p => {
+    inDegree.set(p.id, 0);
+    successors.set(p.id, []);
+  });
+
+  processes.forEach(p => {
+    if (p.beforeProcessIds) {
+      inDegree.set(p.id, p.beforeProcessIds.length);
+    }
+    if (p.nextProcessIds) {
+      p.nextProcessIds.forEach(nextId => {
+        const list = successors.get(p.id) || [];
+        list.push(nextId);
+        successors.set(p.id, list);
+      });
+    }
+  });
+
+  // 前工程がないものから処理開始（入次数0のノード）
+  const queue: string[] = [];
+  processes.forEach(p => {
+    if ((inDegree.get(p.id) || 0) === 0) {
+      queue.push(p.id);
+      const leadTime = p.leadTimeSeconds || 0;
+      result.set(p.id, { startTime: 0, endTime: leadTime });
+    }
+  });
+
+  // BFSでトポロジカル順序に処理
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    const current = processMap.get(currentId);
+    const currentTiming = result.get(currentId);
+    
+    if (!current || !currentTiming) continue;
+
+    const nextIds = successors.get(currentId) || [];
+    nextIds.forEach(nextId => {
+      const nextProcess = processMap.get(nextId);
+      if (!nextProcess) return;
+
+      // 次工程の開始時刻を更新（前工程の終了時刻の最大値）
+      const existingTiming = result.get(nextId);
+      const newStartTime = currentTiming.endTime;
+      
+      if (!existingTiming || newStartTime > existingTiming.startTime) {
+        const leadTime = nextProcess.leadTimeSeconds || 0;
+        result.set(nextId, {
+          startTime: newStartTime,
+          endTime: newStartTime + leadTime,
+        });
+      }
+
+      // 入次数を減らす
+      const newInDegree = (inDegree.get(nextId) || 1) - 1;
+      inDegree.set(nextId, newInDegree);
+      
+      if (newInDegree === 0) {
+        queue.push(nextId);
+      }
+    });
+  }
+
+  // まだ処理されていない工程（循環参照や孤立ノード）
+  processes.forEach(p => {
+    if (!result.has(p.id)) {
+      const leadTime = p.leadTimeSeconds || 0;
+      result.set(p.id, { startTime: 0, endTime: leadTime });
+    }
+  });
+
+  return result;
+};
+
+/**
+ * 時間軸スケールを計算
+ */
+const calculateTimeScale = (
+  processes: Process[],
+  processTimes: Map<string, { startTime: number; endTime: number }>,
+  unit: TimeUnit
+): TimeScale => {
+  let maxEndTime = 0;
+  processTimes.forEach(timing => {
+    maxEndTime = Math.max(maxEndTime, timing.endTime);
+  });
+
+  // 最低でも1単位分は確保
+  const unitSeconds = TIME_UNIT_SECONDS[unit];
+  const totalUnits = Math.max(1, Math.ceil(maxEndTime / unitSeconds));
+  
+  return {
+    unit,
+    unitLabel: TIME_UNIT_LABELS[unit],
+    unitSeconds,
+    pixelsPerUnit: PIXELS_PER_UNIT,
+    totalUnits,
+    totalSeconds: totalUnits * unitSeconds,
+  };
+};
+
+/**
+ * 工程の1つ上位の階層名を取得
+ * 設定されている最も詳細な階層の1つ上を返す
+ */
+const getParentGroupName = (process: Process): string | null => {
+  // 最も詳細なレベルから順に確認し、1つ上のレベル名を返す
+  if (process.detailName) {
+    // 詳細工程 → 小工程名でグループ化
+    return process.smallName || null;
+  }
+  if (process.smallName) {
+    // 小工程 → 中工程名でグループ化
+    return process.mediumName || null;
+  }
+  if (process.mediumName) {
+    // 中工程 → 大工程名でグループ化
+    return process.largeName || null;
+  }
+  // 大工程のみ、または何も設定されていない → グループ化なし
+  return null;
+};
+
+/**
+ * 工程をグループ化し、各グループの境界を計算
+ */
+const calculateProcessGroups = (
+  processes: Process[],
+  positions: Map<string, ProcessPosition>
+): ProcessGroup[] => {
+  // グループ名ごとに工程を収集
+  const groupMap = new Map<string, string[]>();
+  
+  processes.forEach(process => {
+    const groupName = getParentGroupName(process);
+    if (groupName) {
+      const existing = groupMap.get(groupName) || [];
+      existing.push(process.id);
+      groupMap.set(groupName, existing);
+    }
+  });
+
+  // 各グループの境界ボックスを計算
+  const groups: ProcessGroup[] = [];
+  
+  groupMap.forEach((processIds, name) => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    processIds.forEach(id => {
+      const pos = positions.get(id);
+      if (pos) {
+        minX = Math.min(minX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxX = Math.max(maxX, pos.x + pos.width);
+        maxY = Math.max(maxY, pos.y + PROCESS_HEIGHT);
+      }
+    });
+
+    if (minX !== Infinity) {
+      groups.push({
+        name,
+        processIds,
+        bounds: {
+          x: minX - GROUP_PADDING,
+          y: minY - GROUP_PADDING - GROUP_LABEL_HEIGHT,
+          width: maxX - minX + GROUP_PADDING * 2,
+          height: maxY - minY + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
+        },
+      });
+    }
+  });
+
+  return groups;
 };
 
 // ==========================================
@@ -120,9 +350,6 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
   onProcessClick,
   height = '600px',
   className = '',
-  timeScale = DEFAULT_TIME_SCALE,
-  minBoxWidth = MIN_LT_BOX_WIDTH,
-  maxBoxWidth = MAX_LT_BOX_WIDTH,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
@@ -149,57 +376,102 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
     return [...processes].sort((a, b) => a.displayOrder - b.displayOrder);
   }, [processes]);
 
+  // 適切な時間単位を選択
+  const timeUnit = useMemo(() => {
+    return selectOptimalTimeUnit(processes);
+  }, [processes]);
+
+  // 工程の開始・終了時刻を計算
+  const processTimes = useMemo(() => {
+    return calculateProcessStartTimes(sortedProcesses);
+  }, [sortedProcesses]);
+
+  // 時間軸スケールを計算
+  const timeScale = useMemo(() => {
+    return calculateTimeScale(processes, processTimes, timeUnit);
+  }, [processes, processTimes, timeUnit]);
+
   // 工程のレイアウト計算
   const layout = useMemo(() => {
-    const positions: Map<string, { x: number; y: number; width: number }> = new Map();
-    const laneXOffsets: Map<string, number> = new Map();
+    const positions: Map<string, ProcessPosition> = new Map();
 
-    // 各レーンの開始X位置を初期化
-    sortedLanes.forEach(lane => {
-      laneXOffsets.set(lane.id, LANE_HEADER_WIDTH + PROCESS_PADDING);
-    });
-
-    // 各工程の位置を計算
-    sortedProcesses.forEach(process => {
-      const laneIndex = laneIndexMap.get(process.laneId) ?? 0;
-      const currentX = laneXOffsets.get(process.laneId) ?? LANE_HEADER_WIDTH + PROCESS_PADDING;
-      
-      // ボックス幅の計算
-      let boxWidth = NORMAL_BOX_WIDTH;
-      if (viewMode === 'leadtime') {
-        boxWidth = calculateBoxWidth(
-          process.leadTimeSeconds,
-          timeScale,
-          minBoxWidth,
-          maxBoxWidth
-        );
-      }
-
-      // Y位置はレーンの中央
-      const y = laneIndex * LANE_HEIGHT + (LANE_HEIGHT - PROCESS_HEIGHT) / 2;
-
-      positions.set(process.id, {
-        x: currentX,
-        y,
-        width: boxWidth,
+    if (viewMode === 'normal') {
+      // 通常モード：各レーン内で順番に配置
+      const laneXOffsets: Map<string, number> = new Map();
+      sortedLanes.forEach(lane => {
+        laneXOffsets.set(lane.id, LANE_HEADER_WIDTH + PROCESS_PADDING);
       });
 
-      // 次の工程のX位置を更新
-      laneXOffsets.set(process.laneId, currentX + boxWidth + PROCESS_GAP);
-    });
+      sortedProcesses.forEach(process => {
+        const laneIndex = laneIndexMap.get(process.laneId) ?? 0;
+        const currentX = laneXOffsets.get(process.laneId) ?? LANE_HEADER_WIDTH + PROCESS_PADDING;
+        const y = laneIndex * LANE_HEIGHT + (LANE_HEIGHT - PROCESS_HEIGHT) / 2;
 
-    // キャンバス全体のサイズを計算
-    let maxX = LANE_HEADER_WIDTH;
-    laneXOffsets.forEach(x => {
-      maxX = Math.max(maxX, x);
-    });
+        positions.set(process.id, {
+          x: currentX,
+          y,
+          width: NORMAL_BOX_WIDTH,
+          startTime: 0,
+          endTime: 0,
+        });
 
-    return {
-      positions,
-      width: maxX + PROCESS_PADDING,
-      height: sortedLanes.length * LANE_HEIGHT,
-    };
-  }, [sortedProcesses, sortedLanes, laneIndexMap, viewMode, timeScale, minBoxWidth, maxBoxWidth]);
+        laneXOffsets.set(process.laneId, currentX + NORMAL_BOX_WIDTH + PROCESS_GAP);
+      });
+
+      let maxX = LANE_HEADER_WIDTH;
+      laneXOffsets.forEach(x => {
+        maxX = Math.max(maxX, x);
+      });
+
+      return {
+        positions,
+        width: maxX + PROCESS_PADDING,
+        height: sortedLanes.length * LANE_HEIGHT,
+        timelineWidth: 0,
+      };
+    } else {
+      // リードタイムモード：時間軸に基づいて配置
+      const timelineWidth = timeScale.totalUnits * timeScale.pixelsPerUnit;
+
+      sortedProcesses.forEach(process => {
+        const laneIndex = laneIndexMap.get(process.laneId) ?? 0;
+        const timing = processTimes.get(process.id) || { startTime: 0, endTime: 0 };
+        
+        // 時間から位置を計算
+        const startX = LANE_HEADER_WIDTH + PROCESS_PADDING + 
+          (timing.startTime / timeScale.unitSeconds) * timeScale.pixelsPerUnit;
+        
+        // 幅はリードタイムに基づく
+        const leadTimeSeconds = process.leadTimeSeconds || timeScale.unitSeconds * 0.5;
+        const width = Math.max(
+          MIN_BOX_WIDTH,
+          (leadTimeSeconds / timeScale.unitSeconds) * timeScale.pixelsPerUnit
+        );
+
+        const y = TIMELINE_HEIGHT + laneIndex * LANE_HEIGHT + (LANE_HEIGHT - PROCESS_HEIGHT) / 2;
+
+        positions.set(process.id, {
+          x: startX,
+          y,
+          width,
+          startTime: timing.startTime,
+          endTime: timing.endTime,
+        });
+      });
+
+      return {
+        positions,
+        width: LANE_HEADER_WIDTH + PROCESS_PADDING + timelineWidth + PROCESS_PADDING,
+        height: TIMELINE_HEIGHT + sortedLanes.length * LANE_HEIGHT,
+        timelineWidth,
+      };
+    }
+  }, [sortedProcesses, sortedLanes, laneIndexMap, viewMode, processTimes, timeScale]);
+
+  // 工程グループの計算
+  const processGroups = useMemo(() => {
+    return calculateProcessGroups(sortedProcesses, layout.positions);
+  }, [sortedProcesses, layout.positions]);
 
   // ズーム操作
   const handleZoomIn = () => setZoom(z => Math.min(z + 0.1, 3));
@@ -228,6 +500,149 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
 
   const handleMouseUp = () => {
     setIsDragging(false);
+  };
+
+  // グループ枠のレンダリング
+  const renderProcessGroups = () => {
+    if (processGroups.length === 0) return null;
+
+    return processGroups.map((group, index) => {
+      const { bounds, name } = group;
+      
+      return (
+        <g key={`group-${index}-${name}`}>
+          {/* グループ枠（破線） */}
+          <rect
+            x={bounds.x}
+            y={bounds.y}
+            width={bounds.width}
+            height={bounds.height}
+            fill="none"
+            stroke="#6B7280"
+            strokeWidth={1.5}
+            strokeDasharray="6 3"
+            rx={6}
+            ry={6}
+          />
+          {/* グループラベル背景 */}
+          <rect
+            x={bounds.x}
+            y={bounds.y}
+            width={Math.min(bounds.width, name.length * 12 + 16)}
+            height={GROUP_LABEL_HEIGHT}
+            fill="#F3F4F6"
+            stroke="#6B7280"
+            strokeWidth={1.5}
+            rx={4}
+            ry={4}
+          />
+          {/* グループラベルテキスト */}
+          <text
+            x={bounds.x + 8}
+            y={bounds.y + GROUP_LABEL_HEIGHT - 5}
+            fontSize="11"
+            fontWeight="medium"
+            fill="#374151"
+          >
+            {name}
+          </text>
+        </g>
+      );
+    });
+  };
+
+  // 時間軸目盛りのレンダリング
+  const renderTimeline = () => {
+    if (viewMode !== 'leadtime') return null;
+
+    const ticks: JSX.Element[] = [];
+    const majorTickInterval = 1; // 1単位ごとにメジャー目盛り
+    const minorTickInterval = 0.5; // 0.5単位ごとにマイナー目盛り
+
+    for (let i = 0; i <= timeScale.totalUnits; i += minorTickInterval) {
+      const x = LANE_HEADER_WIDTH + PROCESS_PADDING + i * timeScale.pixelsPerUnit;
+      const isMajor = i % majorTickInterval === 0;
+
+      ticks.push(
+        <g key={`tick-${i}`}>
+          {/* 目盛り線 */}
+          <line
+            x1={x}
+            y1={isMajor ? TIMELINE_HEIGHT - 15 : TIMELINE_HEIGHT - 8}
+            x2={x}
+            y2={TIMELINE_HEIGHT}
+            stroke={isMajor ? '#374151' : '#9CA3AF'}
+            strokeWidth={isMajor ? 1.5 : 1}
+          />
+          {/* グリッド線（メジャー目盛りのみ） */}
+          {isMajor && (
+            <line
+              x1={x}
+              y1={TIMELINE_HEIGHT}
+              x2={x}
+              y2={TIMELINE_HEIGHT + sortedLanes.length * LANE_HEIGHT}
+              stroke="#E5E7EB"
+              strokeWidth={1}
+              strokeDasharray="4 4"
+            />
+          )}
+          {/* ラベル（メジャー目盛りのみ） */}
+          {isMajor && (
+            <text
+              x={x}
+              y={TIMELINE_HEIGHT - 20}
+              textAnchor="middle"
+              fontSize="11"
+              fill="#374151"
+              fontWeight={i === 0 ? 'bold' : 'normal'}
+            >
+              {i}{timeScale.unitLabel}
+            </text>
+          )}
+        </g>
+      );
+    }
+
+    return (
+      <g>
+        {/* 時間軸背景 */}
+        <rect
+          x={LANE_HEADER_WIDTH}
+          y={0}
+          width={layout.width - LANE_HEADER_WIDTH}
+          height={TIMELINE_HEIGHT}
+          fill="#F9FAFB"
+        />
+        {/* 時間軸ヘッダー */}
+        <rect
+          x={0}
+          y={0}
+          width={LANE_HEADER_WIDTH}
+          height={TIMELINE_HEIGHT}
+          fill="#F3F4F6"
+        />
+        <text
+          x={LANE_HEADER_WIDTH / 2}
+          y={TIMELINE_HEIGHT / 2 + 4}
+          textAnchor="middle"
+          fontSize="12"
+          fill="#6B7280"
+          fontWeight="medium"
+        >
+          時間軸
+        </text>
+        {/* 時間軸ライン */}
+        <line
+          x1={LANE_HEADER_WIDTH + PROCESS_PADDING}
+          y1={TIMELINE_HEIGHT}
+          x2={layout.width - PROCESS_PADDING}
+          y2={TIMELINE_HEIGHT}
+          stroke="#374151"
+          strokeWidth={2}
+        />
+        {ticks}
+      </g>
+    );
   };
 
   // 工程ノードのレンダリング
@@ -259,23 +674,28 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
           opacity={0.9}
         />
         
-        {/* 工程名 */}
+        {/* 工程名とリードタイム */}
         <foreignObject x={4} y={4} width={pos.width - 8} height={PROCESS_HEIGHT - 8}>
           <div
-            className="h-full flex flex-col justify-center text-white text-xs overflow-hidden"
+            className="h-full flex flex-col justify-center text-white overflow-hidden"
             style={{ fontSize: '11px', lineHeight: '1.2' }}
           >
             <div className="font-medium truncate" title={process.name}>
               {process.name}
             </div>
-            {viewMode === 'leadtime' && process.leadTimeSeconds && (
-              <div className="text-white/80 mt-0.5" style={{ fontSize: '9px' }}>
-                LT: {formatDuration(process.leadTimeSeconds, process.leadTimeUnit)}
+            {/* リードタイムを常に表示 */}
+            {process.leadTimeSeconds && (
+              <div 
+                className="text-white/90 mt-0.5 font-medium" 
+                style={{ fontSize: '10px' }}
+              >
+                LT: {formatDuration(process.leadTimeSeconds, timeUnit)}
               </div>
             )}
+            {/* 通常モードでは工数も表示 */}
             {viewMode === 'normal' && process.workSeconds && (
-              <div className="text-white/80 mt-0.5" style={{ fontSize: '9px' }}>
-                工数: {formatDuration(process.workSeconds, process.workUnitPref)}
+              <div className="text-white/80" style={{ fontSize: '9px' }}>
+                工数: {formatDuration(process.workSeconds, timeUnit)}
               </div>
             )}
           </div>
@@ -301,20 +721,39 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
         const endX = toPos.x;
         const endY = toPos.y + PROCESS_HEIGHT / 2;
 
-        // カーブの制御点
-        const midX = (startX + endX) / 2;
+        // 同じレーン内か異なるレーンか
+        const sameRow = Math.abs(startY - endY) < 5;
 
-        connections.push(
-          <g key={`${process.id}-${nextId}`}>
-            <path
-              d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
-              fill="none"
-              stroke="#9CA3AF"
-              strokeWidth={1.5}
-              markerEnd="url(#arrowhead)"
-            />
-          </g>
-        );
+        if (sameRow) {
+          // 同じ行：直線
+          connections.push(
+            <g key={`${process.id}-${nextId}`}>
+              <line
+                x1={startX}
+                y1={startY}
+                x2={endX}
+                y2={endY}
+                stroke="#6B7280"
+                strokeWidth={1.5}
+                markerEnd="url(#arrowhead)"
+              />
+            </g>
+          );
+        } else {
+          // 異なる行：ベジェ曲線
+          const midX = startX + (endX - startX) * 0.5;
+          connections.push(
+            <g key={`${process.id}-${nextId}`}>
+              <path
+                d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`}
+                fill="none"
+                stroke="#6B7280"
+                strokeWidth={1.5}
+                markerEnd="url(#arrowhead)"
+              />
+            </g>
+          );
+        }
       });
     });
 
@@ -347,6 +786,11 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
             <span className="text-xs text-gray-500">
               ({processes.length} 工程)
             </span>
+            {viewMode === 'leadtime' && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                単位: {TIME_UNIT_LABELS[timeUnit]}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -361,7 +805,7 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
                   <Square3Stack3DIcon className="w-4 h-4" />
                 </Button>
               </Tooltip>
-              <Tooltip content="LT表示（リードタイムで幅を表現）">
+              <Tooltip content="LT表示（リードタイムで幅と位置を表現）">
                 <Button
                   isIconOnly
                   color={viewMode === 'leadtime' ? 'primary' : 'default'}
@@ -401,8 +845,8 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
           onMouseLeave={handleMouseUp}
         >
           <svg
-            width="100%"
-            height="100%"
+            width={Math.max(layout.width * zoom, 800)}
+            height={Math.max(layout.height * zoom, 400)}
             style={{
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
@@ -418,52 +862,61 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
                 refY="3.5"
                 orient="auto"
               >
-                <polygon points="0 0, 10 3.5, 0 7" fill="#9CA3AF" />
+                <polygon points="0 0, 10 3.5, 0 7" fill="#6B7280" />
               </marker>
             </defs>
 
+            {/* 時間軸（LTモードのみ） */}
+            {renderTimeline()}
+
             {/* スイムレーン背景 */}
-            {sortedLanes.map((lane, index) => (
-              <g key={lane.id}>
-                {/* レーン背景 */}
-                <rect
-                  x={0}
-                  y={index * LANE_HEIGHT}
-                  width={layout.width}
-                  height={LANE_HEIGHT}
-                  fill={getLaneBackgroundColor(lane.color, index % 2 === 0 ? 0.05 : 0.1)}
-                  stroke="#E5E7EB"
-                  strokeWidth={1}
-                />
-                {/* レーンヘッダー */}
-                <rect
-                  x={0}
-                  y={index * LANE_HEIGHT}
-                  width={LANE_HEADER_WIDTH}
-                  height={LANE_HEIGHT}
-                  fill={getLaneBackgroundColor(lane.color, 0.2)}
-                  stroke="#E5E7EB"
-                  strokeWidth={1}
-                />
-                {/* レーン名 */}
-                <foreignObject
-                  x={8}
-                  y={index * LANE_HEIGHT}
-                  width={LANE_HEADER_WIDTH - 16}
-                  height={LANE_HEIGHT}
-                >
-                  <div className="h-full flex items-center">
-                    <span
-                      className="text-sm font-medium truncate"
-                      style={{ color: lane.color }}
-                      title={lane.name}
-                    >
-                      {lane.name}
-                    </span>
-                  </div>
-                </foreignObject>
-              </g>
-            ))}
+            {sortedLanes.map((lane, index) => {
+              const yOffset = viewMode === 'leadtime' ? TIMELINE_HEIGHT : 0;
+              return (
+                <g key={lane.id}>
+                  {/* レーン背景 */}
+                  <rect
+                    x={0}
+                    y={yOffset + index * LANE_HEIGHT}
+                    width={layout.width}
+                    height={LANE_HEIGHT}
+                    fill={getLaneBackgroundColor(lane.color, index % 2 === 0 ? 0.05 : 0.1)}
+                    stroke="#E5E7EB"
+                    strokeWidth={1}
+                  />
+                  {/* レーンヘッダー */}
+                  <rect
+                    x={0}
+                    y={yOffset + index * LANE_HEIGHT}
+                    width={LANE_HEADER_WIDTH}
+                    height={LANE_HEIGHT}
+                    fill={getLaneBackgroundColor(lane.color, 0.2)}
+                    stroke="#E5E7EB"
+                    strokeWidth={1}
+                  />
+                  {/* レーン名 */}
+                  <foreignObject
+                    x={8}
+                    y={yOffset + index * LANE_HEIGHT}
+                    width={LANE_HEADER_WIDTH - 16}
+                    height={LANE_HEIGHT}
+                  >
+                    <div className="h-full flex items-center">
+                      <span
+                        className="text-sm font-medium truncate"
+                        style={{ color: lane.color }}
+                        title={lane.name}
+                      >
+                        {lane.name}
+                      </span>
+                    </div>
+                  </foreignObject>
+                </g>
+              );
+            })}
+
+            {/* 工程グループ（破線枠） */}
+            {renderProcessGroups()}
 
             {/* 接続線 */}
             {renderConnections()}
@@ -474,11 +927,13 @@ export const LeadTimeFlowViewer: React.FC<LeadTimeFlowViewerProps> = ({
 
           {/* LTモードの凡例 */}
           {viewMode === 'leadtime' && (
-            <div className="absolute bottom-4 right-4 bg-white/90 rounded-lg shadow-md px-3 py-2 text-xs">
-              <div className="font-medium mb-1">LT表示モード</div>
-              <div className="text-gray-600">
-                ボックスの幅がリードタイムを表します
-              </div>
+            <div className="absolute bottom-4 right-4 bg-white/95 rounded-lg shadow-md px-3 py-2 text-xs border border-gray-200">
+              <div className="font-medium text-gray-800 mb-1">LT表示モード</div>
+              <ul className="text-gray-600 space-y-0.5">
+                <li>• 横位置 = 開始タイミング</li>
+                <li>• 横幅 = リードタイム</li>
+                <li>• 前工程終了後に次工程開始</li>
+              </ul>
             </div>
           )}
         </div>

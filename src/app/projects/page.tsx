@@ -95,14 +95,28 @@ export default function ProjectsPage() {
   // 保存先パス選択
   const handleSelectStoragePath = async () => {
     try {
-      const path = await window.electronAPI.file.selectDirectory();
-      if (path) {
-        setNewProjectStoragePath(path);
+      // Electronが利用可能か確認
+      if (typeof window === 'undefined' || !window.electronAPI?.file?.selectDirectory) {
+        showToast('warning', 'ディレクトリ選択はデスクトップアプリでのみ利用可能です');
+        return;
       }
+
+      const selectedPath = await window.electronAPI.file.selectDirectory();
+      if (selectedPath) {
+        setNewProjectStoragePath(selectedPath);
+        showToast('success', '保存先を選択しました');
+      }
+      // キャンセルの場合はnullが返される（何もしない）
     } catch (error) {
       console.error('[Projects] Failed to select directory:', error);
-      showToast('error', 'ディレクトリの選択に失敗しました');
+      const errorMessage = error instanceof Error ? error.message : 'ディレクトリの選択に失敗しました';
+      showToast('error', errorMessage);
     }
+  };
+
+  // 保存先パスをクリア
+  const handleClearStoragePath = () => {
+    setNewProjectStoragePath('');
   };
 
   // プロジェクト削除
@@ -341,34 +355,60 @@ export default function ProjectsPage() {
               保存先パス（任意）
             </label>
             <div className="flex gap-2">
-              <Input
-                placeholder="デフォルトの保存先を使用"
-                value={newProjectStoragePath}
-                onChange={(e) => setNewProjectStoragePath(e.target.value)}
-                variant="bordered"
-                size="lg"
-                isReadOnly
-                classNames={{
-                  input: "cursor-pointer",
-                  inputWrapper: "cursor-pointer"
-                }}
-              />
+              <div className="flex-1 relative">
+                <Input
+                  placeholder="デフォルトの保存先を使用"
+                  value={newProjectStoragePath}
+                  variant="bordered"
+                  size="lg"
+                  isReadOnly
+                  classNames={{
+                    input: "cursor-default pr-8",
+                    inputWrapper: newProjectStoragePath ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700" : ""
+                  }}
+                  startContent={
+                    newProjectStoragePath ? (
+                      <FolderIcon className="w-5 h-5 text-green-600 flex-shrink-0" />
+                    ) : null
+                  }
+                  endContent={
+                    newProjectStoragePath ? (
+                      <button
+                        type="button"
+                        onClick={handleClearStoragePath}
+                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors"
+                        title="クリア"
+                      >
+                        <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    ) : null
+                  }
+                />
+              </div>
               <Button
-                color="default"
-                variant="bordered"
+                color={newProjectStoragePath ? "success" : "default"}
+                variant={newProjectStoragePath ? "flat" : "bordered"}
                 onPress={handleSelectStoragePath}
                 size="lg"
                 className="flex-shrink-0"
               >
                 <FolderIcon className="w-5 h-5 mr-1" />
-                選択
+                {newProjectStoragePath ? '変更' : '選択'}
               </Button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {newProjectStoragePath 
-                ? `選択されたパス: ${newProjectStoragePath}`
-                : 'デフォルトの保存先を使用します'
-              }
+            <p className="text-xs text-gray-500 mt-2">
+              {newProjectStoragePath ? (
+                <span className="flex items-center gap-1">
+                  <span className="text-green-600 dark:text-green-400">✓</span>
+                  <span className="truncate" title={newProjectStoragePath}>
+                    {newProjectStoragePath}
+                  </span>
+                </span>
+              ) : (
+                'フォルダを選択しない場合、デフォルトの保存先（アプリケーションデータフォルダ）を使用します'
+              )}
             </p>
           </div>
           

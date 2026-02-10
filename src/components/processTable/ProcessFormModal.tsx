@@ -132,10 +132,102 @@ export function ProcessFormModal({
   const [issueWorkHours, setIssueWorkHours] = useState<string>('');
   const [timeReductionHours, setTimeReductionHours] = useState<string>('');
   const [rateReductionPercent, setRateReductionPercent] = useState<string>('');
+  
+  // 新規追加モードの状態
+  const [isNewLargeName, setIsNewLargeName] = useState(false);
+  const [isNewMediumName, setIsNewMediumName] = useState(false);
+  const [isNewSmallName, setIsNewSmallName] = useState(false);
+  const [newLargeNameInput, setNewLargeNameInput] = useState('');
+  const [newMediumNameInput, setNewMediumNameInput] = useState('');
+  const [newSmallNameInput, setNewSmallNameInput] = useState('');
 
+  // 上位工程の選択肢を構築
   const existingLargeNames = Array.from(new Set(processes.map(p => p.largeName).filter(Boolean))) as string[];
-  const existingMediumNames = Array.from(new Set(processes.map(p => p.mediumName).filter(Boolean))) as string[];
-  const existingSmallNames = Array.from(new Set(processes.map(p => p.smallName).filter(Boolean))) as string[];
+  
+  // 選択された大工程に属する中工程を抽出
+  const existingMediumNames = Array.from(new Set(
+    processes
+      .filter(p => !parentLargeName || p.largeName === parentLargeName)
+      .map(p => p.mediumName)
+      .filter(Boolean)
+  )) as string[];
+  
+  // 選択された中工程に属する小工程を抽出
+  const existingSmallNames = Array.from(new Set(
+    processes
+      .filter(p => 
+        (!parentLargeName || p.largeName === parentLargeName) &&
+        (!parentMediumName || p.mediumName === parentMediumName)
+      )
+      .map(p => p.smallName)
+      .filter(Boolean)
+  )) as string[];
+
+  // 大工程選択時に中工程・小工程をリセット
+  const handleLargeNameChange = (value: string) => {
+    if (value === '__NEW__') {
+      setIsNewLargeName(true);
+      setParentLargeName('');
+    } else {
+      setIsNewLargeName(false);
+      setNewLargeNameInput('');
+      setParentLargeName(value);
+      // 大工程が変わったら中工程・小工程をリセット
+      setParentMediumName('');
+      setParentSmallName('');
+      setIsNewMediumName(false);
+      setIsNewSmallName(false);
+    }
+  };
+
+  // 中工程選択時に小工程をリセット
+  const handleMediumNameChange = (value: string) => {
+    if (value === '__NEW__') {
+      setIsNewMediumName(true);
+      setParentMediumName('');
+    } else {
+      setIsNewMediumName(false);
+      setNewMediumNameInput('');
+      setParentMediumName(value);
+      // 中工程が変わったら小工程をリセット
+      setParentSmallName('');
+      setIsNewSmallName(false);
+    }
+  };
+
+  // 小工程選択
+  const handleSmallNameChange = (value: string) => {
+    if (value === '__NEW__') {
+      setIsNewSmallName(true);
+      setParentSmallName('');
+    } else {
+      setIsNewSmallName(false);
+      setNewSmallNameInput('');
+      setParentSmallName(value);
+    }
+  };
+
+  // 新規入力確定時の処理
+  const confirmNewLargeName = () => {
+    if (newLargeNameInput.trim()) {
+      setParentLargeName(newLargeNameInput.trim());
+      setIsNewLargeName(false);
+    }
+  };
+
+  const confirmNewMediumName = () => {
+    if (newMediumNameInput.trim()) {
+      setParentMediumName(newMediumNameInput.trim());
+      setIsNewMediumName(false);
+    }
+  };
+
+  const confirmNewSmallName = () => {
+    if (newSmallNameInput.trim()) {
+      setParentSmallName(newSmallNameInput.trim());
+      setIsNewSmallName(false);
+    }
+  };
 
   // 編集時の初期値設定
   useEffect(() => {
@@ -235,6 +327,13 @@ export function ProcessFormModal({
       setTimeReductionHours('');
       setRateReductionPercent('');
     }
+    // 新規追加モードもリセット
+    setIsNewLargeName(false);
+    setIsNewMediumName(false);
+    setIsNewSmallName(false);
+    setNewLargeNameInput('');
+    setNewMediumNameInput('');
+    setNewSmallNameInput('');
   }, [editingProcess, swimlanes, isOpen]);
 
   // フォーム送信
@@ -465,67 +564,237 @@ export function ProcessFormModal({
                       />
                     </div>
 
-                    {/* 親工程名入力 */}
+                    {/* 親工程名選択 */}
                     {(processTable.level === 'medium' || processTable.level === 'small' || processTable.level === 'detail') && (
-                      <div className="space-y-3">
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <Input
-                            label="親工程名（大工程）"
-                            placeholder="既存の大工程名を選択または入力"
-                            value={parentLargeName}
-                            onValueChange={setParentLargeName}
-                          />
-                          {existingLargeNames.length > 0 && (
-                            <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500">
-                              <span className="text-gray-600">候補:</span>
-                              {existingLargeNames.map((n) => (
-                                <Button key={n} size="sm" variant="light" onPress={() => setParentLargeName(n)}>
-                                  {n}
+                      <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          上位工程の設定
+                        </h4>
+                        
+                        {/* 大工程選択 */}
+                        <div className="space-y-2">
+                          {isNewLargeName ? (
+                            <div className="flex gap-2">
+                              <Input
+                                label="新しい大工程名"
+                                placeholder="大工程名を入力"
+                                value={newLargeNameInput}
+                                onValueChange={setNewLargeNameInput}
+                                classNames={{ base: 'flex-1' }}
+                                autoFocus
+                              />
+                              <div className="flex items-end gap-1">
+                                <Button
+                                  size="sm"
+                                  color="primary"
+                                  onPress={confirmNewLargeName}
+                                  isDisabled={!newLargeNameInput.trim()}
+                                >
+                                  確定
                                 </Button>
-                              ))}
+                                <Button
+                                  size="sm"
+                                  variant="flat"
+                                  onPress={() => {
+                                    setIsNewLargeName(false);
+                                    setNewLargeNameInput('');
+                                  }}
+                                >
+                                  戻る
+                                </Button>
+                              </div>
                             </div>
+                          ) : (
+                            <Select
+                              label="大工程"
+                              placeholder="大工程を選択"
+                              selectedKeys={parentLargeName ? [parentLargeName] : []}
+                              onSelectionChange={(keys) => {
+                                const selected = Array.from(keys)[0] as string;
+                                handleLargeNameChange(selected || '');
+                              }}
+                              description={existingLargeNames.length === 0 ? '「新規追加」から大工程を作成できます' : undefined}
+                            >
+                              {[
+                                ...existingLargeNames.map((name) => (
+                                  <SelectItem key={name} textValue={name}>
+                                    {name}
+                                  </SelectItem>
+                                )),
+                                <SelectItem key="__NEW__" textValue="新規追加" className="text-primary-600">
+                                  <span className="flex items-center gap-1">
+                                    <span>＋</span>
+                                    <span>新規追加...</span>
+                                  </span>
+                                </SelectItem>,
+                              ]}
+                            </Select>
                           )}
                         </div>
 
+                        {/* 中工程選択 */}
                         {(processTable.level === 'small' || processTable.level === 'detail') && (
-                          <div className="grid md:grid-cols-2 gap-4">
-                            <Input
-                              label="親工程名（中工程）"
-                              placeholder="既存の中工程名を選択または入力"
-                              value={parentMediumName}
-                              onValueChange={setParentMediumName}
-                            />
-                            {existingMediumNames.length > 0 && (
-                              <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500">
-                                <span className="text-gray-600">候補:</span>
-                                {existingMediumNames.map((n) => (
-                                  <Button key={n} size="sm" variant="light" onPress={() => setParentMediumName(n)}>
-                                    {n}
+                          <div className="space-y-2">
+                            {isNewMediumName ? (
+                              <div className="flex gap-2">
+                                <Input
+                                  label="新しい中工程名"
+                                  placeholder="中工程名を入力"
+                                  value={newMediumNameInput}
+                                  onValueChange={setNewMediumNameInput}
+                                  classNames={{ base: 'flex-1' }}
+                                  autoFocus
+                                />
+                                <div className="flex items-end gap-1">
+                                  <Button
+                                    size="sm"
+                                    color="primary"
+                                    onPress={confirmNewMediumName}
+                                    isDisabled={!newMediumNameInput.trim()}
+                                  >
+                                    確定
                                   </Button>
-                                ))}
+                                  <Button
+                                    size="sm"
+                                    variant="flat"
+                                    onPress={() => {
+                                      setIsNewMediumName(false);
+                                      setNewMediumNameInput('');
+                                    }}
+                                  >
+                                    戻る
+                                  </Button>
+                                </div>
                               </div>
+                            ) : (
+                              <Select
+                                label="中工程"
+                                placeholder={parentLargeName ? '中工程を選択' : '先に大工程を選択してください'}
+                                selectedKeys={parentMediumName ? [parentMediumName] : []}
+                                onSelectionChange={(keys) => {
+                                  const selected = Array.from(keys)[0] as string;
+                                  handleMediumNameChange(selected || '');
+                                }}
+                                isDisabled={!parentLargeName && existingMediumNames.length === 0}
+                                description={
+                                  parentLargeName && existingMediumNames.length === 0
+                                    ? `「${parentLargeName}」に属する中工程がありません。「新規追加」から作成できます。`
+                                    : undefined
+                                }
+                              >
+                                {[
+                                  ...existingMediumNames.map((name) => (
+                                    <SelectItem key={name} textValue={name}>
+                                      {name}
+                                    </SelectItem>
+                                  )),
+                                  <SelectItem key="__NEW__" textValue="新規追加" className="text-primary-600">
+                                    <span className="flex items-center gap-1">
+                                      <span>＋</span>
+                                      <span>新規追加...</span>
+                                    </span>
+                                  </SelectItem>,
+                                ]}
+                              </Select>
                             )}
                           </div>
                         )}
 
+                        {/* 小工程選択 */}
                         {processTable.level === 'detail' && (
-                          <div className="grid md:grid-cols-2 gap-4">
-                            <Input
-                              label="親工程名（小工程）"
-                              placeholder="既存の小工程名を選択または入力"
-                              value={parentSmallName}
-                              onValueChange={setParentSmallName}
-                            />
-                            {existingSmallNames.length > 0 && (
-                              <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500">
-                                <span className="text-gray-600">候補:</span>
-                                {existingSmallNames.map((n) => (
-                                  <Button key={n} size="sm" variant="light" onPress={() => setParentSmallName(n)}>
-                                    {n}
+                          <div className="space-y-2">
+                            {isNewSmallName ? (
+                              <div className="flex gap-2">
+                                <Input
+                                  label="新しい小工程名"
+                                  placeholder="小工程名を入力"
+                                  value={newSmallNameInput}
+                                  onValueChange={setNewSmallNameInput}
+                                  classNames={{ base: 'flex-1' }}
+                                  autoFocus
+                                />
+                                <div className="flex items-end gap-1">
+                                  <Button
+                                    size="sm"
+                                    color="primary"
+                                    onPress={confirmNewSmallName}
+                                    isDisabled={!newSmallNameInput.trim()}
+                                  >
+                                    確定
                                   </Button>
-                                ))}
+                                  <Button
+                                    size="sm"
+                                    variant="flat"
+                                    onPress={() => {
+                                      setIsNewSmallName(false);
+                                      setNewSmallNameInput('');
+                                    }}
+                                  >
+                                    戻る
+                                  </Button>
+                                </div>
                               </div>
+                            ) : (
+                              <Select
+                                label="小工程"
+                                placeholder={parentMediumName ? '小工程を選択' : '先に中工程を選択してください'}
+                                selectedKeys={parentSmallName ? [parentSmallName] : []}
+                                onSelectionChange={(keys) => {
+                                  const selected = Array.from(keys)[0] as string;
+                                  handleSmallNameChange(selected || '');
+                                }}
+                                isDisabled={!parentMediumName && existingSmallNames.length === 0}
+                                description={
+                                  parentMediumName && existingSmallNames.length === 0
+                                    ? `「${parentMediumName}」に属する小工程がありません。「新規追加」から作成できます。`
+                                    : undefined
+                                }
+                              >
+                                {[
+                                  ...existingSmallNames.map((name) => (
+                                    <SelectItem key={name} textValue={name}>
+                                      {name}
+                                    </SelectItem>
+                                  )),
+                                  <SelectItem key="__NEW__" textValue="新規追加" className="text-primary-600">
+                                    <span className="flex items-center gap-1">
+                                      <span>＋</span>
+                                      <span>新規追加...</span>
+                                    </span>
+                                  </SelectItem>,
+                                ]}
+                              </Select>
                             )}
+                          </div>
+                        )}
+
+                        {/* 選択された階層の表示 */}
+                        {(parentLargeName || parentMediumName || parentSmallName) && (
+                          <div className="mt-3 p-2 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">選択された上位工程:</p>
+                            <div className="flex items-center gap-1 text-sm">
+                              {parentLargeName && (
+                                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                  {parentLargeName}
+                                </span>
+                              )}
+                              {parentMediumName && (
+                                <>
+                                  <span className="text-gray-400">›</span>
+                                  <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                    {parentMediumName}
+                                  </span>
+                                </>
+                              )}
+                              {parentSmallName && (
+                                <>
+                                  <span className="text-gray-400">›</span>
+                                  <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                                    {parentSmallName}
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
