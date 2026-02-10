@@ -24,6 +24,47 @@ interface UpdateProjectDto {
   description?: string;
 }
 
+// デフォルト工程表の定義
+const DEFAULT_PROCESS_TABLES = [
+  { name: '大工程表', level: 'large' as const, description: '大工程（概要レベル）の工程表' },
+  { name: '中工程表', level: 'medium' as const, description: '中工程（中間レベル）の工程表' },
+  { name: '小工程表', level: 'small' as const, description: '小工程（詳細レベル）の工程表' },
+  { name: '詳細工程表', level: 'detail' as const, description: '詳細工程（最詳細レベル）の工程表' },
+];
+
+// デフォルトスイムレーンの定義
+const DEFAULT_SWIMLANES = [
+  { name: '担当者A', color: '#3B82F6' },
+  { name: '担当者B', color: '#10B981' },
+  { name: '担当者C', color: '#F59E0B' },
+];
+
+/**
+ * デフォルトの工程表を作成
+ */
+function createDefaultProcessTables(db: any, projectId: string, now: number): void {
+  DEFAULT_PROCESS_TABLES.forEach((tableData, index) => {
+    const processTableId = uuidv4();
+
+    // 工程表を作成
+    db.prepare(`
+      INSERT INTO process_tables (id, project_id, name, level, description, is_investigation, display_order, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(processTableId, projectId, tableData.name, tableData.level, tableData.description, 0, index, now, now);
+
+    // デフォルトスイムレーンを作成
+    DEFAULT_SWIMLANES.forEach((laneData, laneIndex) => {
+      const swimlaneId = uuidv4();
+      db.prepare(`
+        INSERT INTO swimlanes (id, process_table_id, name, color, order_num, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(swimlaneId, processTableId, laneData.name, laneData.color, laneIndex, now, now);
+    });
+
+    console.log(`[IPC] Default process table created: ${tableData.name} (${processTableId})`);
+  });
+}
+
 /**
  * プロジェクト関連のIPCハンドラーを登録
  */
@@ -38,13 +79,28 @@ export function registerProjectHandlers(): void {
       // プロジェクトフォルダを作成
       const storagePath = createProjectFolder(projectId);
 
-      // データベースに保存
-      const stmt = db.prepare(`
-        INSERT INTO projects (id, name, description, storage_path, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `);
+      // トランザクション開始
+      db.prepare('BEGIN').run();
 
-      stmt.run(projectId, data.name, data.description || null, storagePath, now, now);
+      try {
+        // データベースに保存
+        const stmt = db.prepare(`
+          INSERT INTO projects (id, name, description, storage_path, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `);
+
+        stmt.run(projectId, data.name, data.description || null, storagePath, now, now);
+
+        // デフォルトの工程表を作成
+        createDefaultProcessTables(db, projectId, now);
+
+        // トランザクションコミット
+        db.prepare('COMMIT').run();
+      } catch (error) {
+        // トランザクションロールバック
+        db.prepare('ROLLBACK').run();
+        throw error;
+      }
 
       const project: Project = {
         id: projectId,
@@ -55,7 +111,7 @@ export function registerProjectHandlers(): void {
         updatedAt: new Date(now),
       };
 
-      console.log('[IPC] Project created:', projectId);
+      console.log('[IPC] Project created with default process tables:', projectId);
       return project;
     } catch (error) {
       console.error('[IPC] Error creating project:', error);
